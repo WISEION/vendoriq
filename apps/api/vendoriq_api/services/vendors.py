@@ -329,6 +329,10 @@ def patch(
     return vendor
 
 
+#: Statuses only `decideApplication` may produce (spec §9). See `_set_status`.
+_DECIDED_STATUSES = frozenset({VendorStatus.PREQUALIFIED, VendorStatus.REJECTED})
+
+
 def _set_status(
     uow: UnitOfWork,
     vendor: Vendor,
@@ -337,9 +341,25 @@ def _set_status(
     role: UserRole | None,
     reason: str | None,
 ) -> None:
-    """Direct status writes are a staff instrument; suspension has its own endpoint."""
+    """Direct status writes are a staff instrument; outcomes and suspension are not among them.
+
+    `prequalified` and `rejected` are what a commission decision *produces*
+    (`sync_status_from_application`, spec §9). Writing one here reached the same column by a
+    route with no application, no score, no pass mark and no decision behind it — and
+    `services/matching.py` reads exactly that column to build the eligible-candidate pool, so
+    a single PATCH put an arbitrary vendor in front of a project (3B, finding 1). Restricting
+    it by role would not have been enough: a manager may not conjure a prequalification
+    either, because the point is that the commission decided, not that someone senior asked.
+    """
     if role is UserRole.VENDOR:
         raise ApiError(403, "forbidden", "A vendor cannot set its own status.")
+    if target in _DECIDED_STATUSES:
+        raise ApiError(
+            409,
+            "conflict",
+            f"{target.value!r} is the outcome of a commission decision, not a value that can "
+            "be set. Use POST /applications/{id}/decide.",
+        )
     if target is VendorStatus.SUSPENDED:
         raise ApiError(
             409,

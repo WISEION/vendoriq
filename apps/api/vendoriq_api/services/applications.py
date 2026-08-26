@@ -144,6 +144,24 @@ def transition(
     if vendor is not None:
         vendors_service.sync_status_from_application(uow, vendor, target)
 
+        # Coming back from `information_requested` is the second freeze (3B, finding 4). The
+        # vendor was asked to correct a figure and did; without this the officer resumes the
+        # review still scoring the number that was superseded, because `raw_snapshot` was
+        # frozen at the original submission and the loop has no edge back through `submit`.
+        # It belongs here, at the only writer of `application.status`, for the same reason
+        # the status itself does: no handler can arrange to skip it.
+        #
+        # Imported locally: `submission` imports this module, so the pair cannot both do it
+        # at module level.
+        if (
+            source is ApplicationStatus.INFORMATION_REQUESTED
+            and target is ApplicationStatus.UNDER_REVIEW
+        ):
+            from . import submission as submission_service
+
+            application.raw_snapshot = submission_service.raw_snapshot_now(uow, vendor)
+            uow.flush()
+
     if target is ApplicationStatus.SUBMITTED:
         events.emit(
             uow,

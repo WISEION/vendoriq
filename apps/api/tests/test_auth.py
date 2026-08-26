@@ -584,7 +584,11 @@ def test_test_mode_is_refused_in_production() -> None:
 
 
 def test_live_mode_in_production_is_fine() -> None:
-    settings = Settings(app_env="production", auth_mode="live", _env_file=None)  # type: ignore[call-arg]
+    # A real `session_secret` is now required alongside `AUTH_MODE=live` in production
+    # (3B, finding 9) — this test is about the auth-mode guard, so it supplies one.
+    settings = Settings(  # type: ignore[call-arg]
+        app_env="production", auth_mode="live", session_secret="0" * 64, _env_file=None
+    )
     assert settings.app_env == "production"
 
 

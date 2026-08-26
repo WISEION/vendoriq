@@ -203,8 +203,19 @@ def _base_raw(session: Session, application: Application, vendor: Vendor) -> dic
     raw-indicator snapshot"); the live, current profile before that, run through the same
     :func:`derive_raw` the vendor portal and the register already call — this is not a second
     implementation of the derivation rule, it is the same call.
+
+    **And live again while the application sits in `information_requested`** (3B, finding 4).
+    That state exists precisely because a figure was wrong and the vendor has been asked to
+    replace it, so the snapshot is stale *by definition* for as long as it lasts. Preferring
+    it there showed the officer the number that had already been superseded — spec §5's
+    freeze silently defeating spec §9's loop. The snapshot is re-frozen from the corrected
+    profile when the review resumes (`services/applications.py::transition`), so this window
+    is the only time the two disagree, and during it the live figure is the true one.
     """
-    if application.raw_snapshot is not None:
+    if (
+        application.raw_snapshot is not None
+        and application.status is not ApplicationStatus.INFORMATION_REQUESTED
+    ):
         return dict(application.raw_snapshot)
     from vendoriq_scoring import derive_raw
 
@@ -345,6 +356,17 @@ def save_evaluation(
     vendor = session.get(Vendor, application.vendor_id)
     if vendor is None:  # pragma: no cover - FK guarantees this
         raise ApiError(404, "not_found", "The application's vendor no longer exists.")
+
+    # The moment this version has scored an application, its definition is frozen (spec
+    # §10.3, ADR-017). `patch_draft` has always refused on `is_locked` — but nothing except
+    # the seed ever *set* it, so every model created through the editor stayed editable
+    # forever (3B, finding 2). The demonstrated consequence: an application refused at 5.7
+    # points, the live version's pass mark patched from 70 to 1, the same application then
+    # approved to `prequalified`. Locking here rather than at the decision is deliberate:
+    # `is_locked` records that the version was *used to score*, which is this line, not that
+    # a commission agreed with the result.
+    if not model_row.is_locked:
+        model_row.is_locked = True
 
     before = dict(application.rubric_scores or {})
     application.rubric_scores = dict(body.rubric_scores)

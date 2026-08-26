@@ -15,8 +15,8 @@ Conventions: TanStack Router paths, `$param` for a path parameter. The screensho
 
 | # | Slug | Route | Content |
 |---|---|---|---|
-| 1 | `auth-vendor-signin` | `/signin` | E-mail → one-time code, two steps on one screen |
-| 2 | `auth-staff-signin` | `/signin/staff` | E-mail + password → TOTP, via `challenge_id` |
+| 1 | `auth-vendor-signin` | `/login` | E-mail → one-time code, two steps on one screen |
+| 2 | `auth-staff-signin` | `/login/staff` | E-mail + password → TOTP, via `challenge_id` |
 | 3 | `auth-vendor-register` | `/register` | Self-registration, fields per contract `VendorRegistration` |
 
 ## Vendor portal (task 2A) — spec §7

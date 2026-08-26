@@ -34,17 +34,32 @@ export function ClassPill({ cls }: { cls: ScoreClass | null | undefined }) {
   return <span className={`mgr-cls mgr-cls-${label}`}>{label}</span>;
 }
 
+/**
+ * One `st_<status>` key per status, for every value of `ApplicationStatus` and
+ * `VendorStatus`. Two things were wrong here (3B, findings 7 and 8).
+ *
+ * `withdrawn` and `suspended` both read "Rejected" — not a missing translation but a false
+ * statement: a vendor who withdrew was not turned down, and a suspension is a hold that gets
+ * lifted. `state_machine.py`'s own comment says as much.
+ *
+ * And `ApplicationsQueue.tsx` does not come through this map at all — it renders
+ * ``t(`st_${value}`)`` straight from the status. Five of the eight application statuses had
+ * no such key, so the queue showed raw identifiers (`in_progress`,
+ * `information_requested`, `withdrawn`) in Azerbaijani as well as English. Keying this map
+ * as `st_<status>` throughout means both routes now reach the same string, and a missing one
+ * is a test failure rather than an identifier on screen.
+ */
 const STATUS_KEY: Record<string, string> = {
   registered: 'st_registered',
-  invited: 'step_inv',
-  in_progress: 'st_incomplete',
-  submitted: 'step_sub',
+  invited: 'st_invited',
+  in_progress: 'st_in_progress',
+  submitted: 'st_submitted',
   under_review: 'st_under_review',
-  information_requested: 'k_needs',
+  information_requested: 'st_information_requested',
   prequalified: 'st_prequalified',
   rejected: 'st_rejected',
-  suspended: 'st_rejected',
-  withdrawn: 'st_rejected',
+  suspended: 'st_suspended',
+  withdrawn: 'st_withdrawn',
 };
 
 const STATUS_TONE: Record<string, 'good' | 'warn' | 'crit' | 'neutral' | 'accent'> = {

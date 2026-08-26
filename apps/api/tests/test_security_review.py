@@ -368,35 +368,47 @@ def test_an_api_key_can_never_mint_another_api_key_or_an_account(
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="FINDING 1: PATCH /vendors/{id} accepts status=prequalified from any staff role. "
-    "An officer or a commission member can prequalify a vendor with no evaluation, no score "
-    "and no manager approval — and matching reads exactly that column.",
-)
-def test_only_a_manager_can_put_a_vendor_into_the_prequalified_state(
-    client: TestClient, make_vendor: Any, make_user: Any, login: Any, session: Session
+@pytest.mark.parametrize("role", [UserRole.OFFICER, UserRole.COMMISSION, UserRole.MANAGER])
+@pytest.mark.parametrize("target", ["prequalified", "rejected"])
+def test_no_role_can_type_a_vendor_into_a_decided_status(
+    client: TestClient, make_vendor: Any, make_user: Any, login: Any, role: UserRole, target: str
 ) -> None:
+    """FINDING 1, fixed — and the fix is stricter than the finding asked for.
+
+    3B's title proposed restricting the direct write to a manager. That is the wrong shape:
+    the reason `prequalified` may not be typed is not that the typist is too junior, it is
+    that the status means *the commission decided*, and no seniority substitutes for a
+    decision that did not happen. `services/matching.py` reads this column to build the
+    eligible-candidate pool, so the write put an arbitrary vendor in front of a project with
+    no application, no score and no pass mark behind it.
+
+    Both outcome statuses, all three staff roles: 409, from `_set_status`.
+    """
     vendor = make_vendor()
-    login(make_user(UserRole.OFFICER))
+    login(make_user(role))
     response = client.patch(
         f"/api/vendors/{vendor.id}",
-        json={"status": "prequalified", "reason": "no evaluation ever happened"},
+        json={"status": target, "reason": "no evaluation ever happened"},
     )
-    assert response.status_code == 403, (
-        f"an officer set vendor.status={response.json().get('status')!r} directly, "
-        "bypassing spec §9"
+    # 409 from `_set_status` for the roles that may touch the register at all; 403 for the
+    # commission, which no longer may (finding 5). Either way the column is not written.
+    expected = 403 if role is UserRole.COMMISSION else 409
+    assert response.status_code == expected, (
+        f"{role.value} set vendor.status={target!r} directly, bypassing spec §9: {response.text}"
     )
+    if expected == 409:
+        assert "decide" in response.json()["error"]["message"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="FINDING 4: patchVendor is open to EVERYONE, so a commission member can rewrite the "
-    "register (legal name, VÖEN, type). Spec §3 gives the commission decisions only.",
-)
 def test_a_commission_member_cannot_rewrite_the_register(
     client: TestClient, make_vendor: Any, make_user: Any, login: Any
 ) -> None:
+    """FINDING 5, fixed: `patchVendor` no longer admits the commission.
+
+    `legal_name` and `voen` are the identity every integration maps on, and
+    `decideApplication` is commission-only — the pair let one role both rewrite who a vendor
+    is and rule on it.
+    """
     vendor = make_vendor()
     login(make_user(UserRole.COMMISSION))
     response = client.patch(
@@ -496,13 +508,6 @@ def test_an_audit_row_never_outlives_the_mutation_it_describes(
     assert reloaded is not None and reloaded.legal_name != "Half applied"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="FINDING 2: ScoringModel.is_locked is only ever set by seed/real.py for sub-4. "
-    "No code path sets it when an application is scored, so patchScoringModelDraft rewrites "
-    "the criteria and the pass mark of any other version — including an active one that has "
-    "already scored applications (ADR-014/017, spec §10.3).",
-)
 def test_a_model_version_that_has_scored_an_application_is_immutable(
     client: TestClient,
     make_vendor: Any,
@@ -539,10 +544,15 @@ def test_lowering_the_pass_mark_of_a_used_model_approves_a_failing_application(
     cycle: QualificationCycle,
     model_version: str,
 ) -> None:
-    """What FINDING 2 buys: the same application, refused and then approved, with nothing
-    about the *evidence* changed. Not xfail — this is the current behaviour, recorded."""
+    """What FINDING 2 bought, and no longer does: the same application refused, the pass mark
+    lowered under it, and the same application then approved — with nothing about the
+    *evidence* changed. This was the chain 3B demonstrated end to end. Each step is still
+    driven here; the difference is that the middle one is now refused, so the last one stays
+    refused too.
+    """
     application = _application(uow, make_vendor(), cycle, raw=LOW_RAW)
     login(make_user(UserRole.MANAGER))
+    # Scoring the application is what freezes the version's definition (spec §10.3).
     client.put(f"/api/applications/{application.id}/evaluation", json={"rubric_scores": {}})
 
     refused = client.post(
@@ -550,23 +560,18 @@ def test_lowering_the_pass_mark_of_a_used_model_approves_a_failing_application(
     )
     assert refused.status_code == 409
 
-    assert (
-        client.patch(f"/api/scoring-models/{model_version}", json={"pass_mark": 1.0}).status_code
-        == 200
+    lowered = client.patch(f"/api/scoring-models/{model_version}", json={"pass_mark": 1.0})
+    assert lowered.status_code == 409, (
+        f"the pass mark of a version that has scored an application was rewritten to "
+        f"{lowered.json().get('pass_mark')!r}"
     )
-    approved = client.post(
+
+    still_refused = client.post(
         f"/api/applications/{application.id}/decide", json={"decision": "approve"}
     )
-    assert approved.status_code == 200, approved.text
-    assert approved.json()["status"] == "prequalified"
+    assert still_refused.status_code == 409, still_refused.text
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="FINDING 3: the raw snapshot is frozen at submission and never refreshed, so the "
-    "information_requested loop of spec §9 cannot correct a numeric indicator — the officer "
-    "scores the number the vendor first sent, not the one it was asked to correct.",
-)
 def test_information_requested_lets_a_corrected_indicator_reach_the_score(
     client: TestClient,
     make_vendor: Any,
@@ -599,6 +604,60 @@ def test_information_requested_lets_a_corrected_indicator_reach_the_score(
     assert rows["B.1"] == 9_000_000.0, (
         f"the officer is still scoring the superseded figure {rows['B.1']!r}"
     )
+    # FINDING 4, fixed in two halves. While the application sits in `information_requested`
+    # the evaluation reads the live profile, because the snapshot is stale by definition for
+    # as long as that state lasts — that is what this assertion proves. And the snapshot is
+    # re-frozen from the corrected profile when the review resumes, since the loop's only
+    # edge back is `information_requested → under_review` and it never passed through
+    # `submit`. Without the second half the correction would be visible and then lost.
+
+
+def test_resuming_the_review_re_freezes_the_corrected_snapshot(
+    client: TestClient,
+    make_vendor: Any,
+    make_user: Any,
+    login: Any,
+    logout: Any,
+    uow: UnitOfWork,
+    cycle: QualificationCycle,
+) -> None:
+    """The other half of FINDING 4: the correction has to survive leaving the loop.
+
+    Showing the live figure during `information_requested` is not enough on its own. The only
+    edge back is `information_requested → under_review`, which never passes through `submit`,
+    so without a second freeze the officer would watch the corrected number appear and then
+    revert the moment the review resumed.
+    """
+    vendor = make_vendor()
+    application = _application(uow, vendor, cycle, raw={**GOOD_RAW, "B.1": 1_000.0})
+    applications_service.transition(
+        uow, application, ApplicationStatus.INFORMATION_REQUESTED, role=UserRole.OFFICER
+    )
+    uow.commit()
+
+    login(make_user(UserRole.VENDOR, vendor=vendor))
+    client.patch(
+        f"/api/applications/{application.id}/answers",
+        json={"answers": {"B.2": 9_000_000, "B.3": 9_000_000, "B.4": 9_000_000}},
+    )
+    logout()
+
+    applications_service.transition(
+        uow, application, ApplicationStatus.UNDER_REVIEW, role=UserRole.OFFICER
+    )
+    uow.commit()
+
+    assert (application.raw_snapshot or {})["B.1"] == 9_000_000.0, (
+        "resuming the review restored the superseded figure: "
+        f"{(application.raw_snapshot or {}).get('B.1')!r}"
+    )
+
+    login(make_user(UserRole.OFFICER))
+    rows = {
+        row["code"]: row["raw_value"]
+        for row in client.get(f"/api/applications/{application.id}/evaluation").json()["rows"]
+    }
+    assert rows["B.1"] == 9_000_000.0
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -701,12 +760,6 @@ def test_the_otp_endpoints_rate_limit(
     assert codes[-1] == 429, codes
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="FINDING 5: a wrong code increments OtpCode.attempts, but the 401 is raised inside "
-    "the request transaction, which get_uow then rolls back. attempts is always 0, so "
-    "OTP_MAX_ATTEMPTS is inert and only the in-process rate limiter bounds guessing.",
-)
 def test_a_wrong_otp_code_burns_an_attempt(
     client: TestClient, make_vendor: Any, make_user: Any, session: Session
 ) -> None:
@@ -726,15 +779,36 @@ def test_a_wrong_otp_code_burns_an_attempt(
     assert row.attempts == 3, f"three wrong codes left attempts={row.attempts}"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="FINDING 6: Settings refuses AUTH_MODE=test in production but accepts the built-in "
-    "placeholder SESSION_SECRET. That one string signs session cookies, TOTP challenges, "
-    "upload tickets and every signed storage URL.",
-)
 def test_production_refuses_the_placeholder_session_secret() -> None:
-    with pytest.raises(ValueError):
+    """FINDING 9, fixed: the companion guard to the `AUTH_MODE` one, which was missing.
+
+    One string signs every session cookie, TOTP challenge, upload ticket and signed storage
+    URL. Left at the value printed in `infra/.env.example`, anybody who has read this
+    repository can mint a session for any role — so it is checked in `Settings`, which both
+    the compose path and a native deployment pass through.
+    """
+    with pytest.raises(ValueError, match="SESSION_SECRET"):
         Settings(_env_file=None, app_env="production", auth_mode="live")  # type: ignore[call-arg]
+
+
+def test_production_refuses_a_short_session_secret() -> None:
+    with pytest.raises(ValueError, match="at least"):
+        Settings(  # type: ignore[call-arg]
+            _env_file=None, app_env="production", auth_mode="live", session_secret="short"
+        )
+
+
+def test_a_real_secret_in_production_is_accepted() -> None:
+    """The guard has to let a correct deployment through — otherwise it is just an outage."""
+    settings = Settings(  # type: ignore[call-arg]
+        _env_file=None, app_env="production", auth_mode="live", session_secret="0" * 64
+    )
+    assert settings.app_env == "production"
+
+
+def test_development_is_left_alone() -> None:
+    """`make up` on a laptop must keep working with the checked-in defaults."""
+    assert Settings(_env_file=None).session_secret  # type: ignore[call-arg]
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -753,14 +827,18 @@ def test_every_error_envelope_code_has_a_sentence_in_both_languages() -> None:
         assert not missing, f"{language}.json has no sentence for: {missing}"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="FINDING 7: ApplicationsQueue renders the status filter as t(`st_${value}`) and "
-    "only three of the eight ApplicationStatus values have an st_ key. The other five fall "
-    "through to the raw identifier — 'in_progress', 'information_requested', 'withdrawn' — "
-    "in Azerbaijani as well as English.",
-)
 def test_every_application_status_has_an_st_label_in_both_languages() -> None:
+    """FINDING 7, fixed: every status has its own key, in both languages.
+
+    `ApplicationsQueue` renders the status filter as ``t(`st_${value}`)``, and only three of
+    the eight `ApplicationStatus` values had an `st_` key. The other five fell through to the
+    raw identifier — `in_progress`, `information_requested`, `withdrawn` on screen, in
+    Azerbaijani as well as English.
+
+    `test_i18n_contract` could not catch it: that test compares the two dictionaries to *each
+    other*, so a key missing from both is perfectly consistent. This one compares them to the
+    contract, which is the only place the set of statuses is actually defined.
+    """
     contract = load_contract()
     statuses = contract["components"]["schemas"]["ApplicationStatus"]["enum"]
     for language in ("az", "en"):
@@ -769,13 +847,14 @@ def test_every_application_status_has_an_st_label_in_both_languages() -> None:
         assert not missing, f"{language}.json has no st_ label for: {missing}"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="FINDING 8: features/manager/shared.tsx maps withdrawn and suspended onto "
-    "st_rejected, so a withdrawn application and a suspended vendor are both labelled "
-    "'Rədd edilib' / 'Rejected' — a factual misstatement, not a missing translation.",
-)
 def test_withdrawn_and_suspended_are_not_labelled_rejected() -> None:
+    """FINDING 8, fixed: they have their own labels now.
+
+    `features/manager/shared.tsx` mapped both onto `st_rejected`, so a withdrawn application
+    and a suspended vendor were labelled "Rədd edilib" / "Rejected". That is not a missing
+    translation but a false statement: a vendor who withdrew was not turned down, and a
+    suspension is a hold that gets lifted. `state_machine.py`'s own transition table says so.
+    """
     source = (REPO_ROOT / "apps" / "web" / "src" / "features" / "manager" / "shared.tsx").read_text(
         encoding="utf-8"
     )

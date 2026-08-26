@@ -525,9 +525,7 @@ def test_wesa_and_shield_carry_the_fullest_real_records(
     # `A.1` is "Full legal name" rather than "Construction licence" — writing the workbook's
     # criterion codes into it made the portal show Wesa's legal name as `3` (ADR-021).
     assert (
-        session.scalars(
-            select(FieldObservation).where(FieldObservation.vendor_id == wesa.id)
-        ).all()
+        session.scalars(select(FieldObservation).where(FieldObservation.vendor_id == wesa.id)).all()
         == []
     )
 

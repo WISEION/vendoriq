@@ -227,7 +227,13 @@ def verify_otp(uow: UnitOfWork, settings: Settings, *, email: str, code: str) ->
     # Test mode accepts 000000 *in addition to* a real code — the owner clicks through
     # without an e-mail server, and a real code still behaves exactly as in live mode.
     if matched is None and not (settings.auth_mode == "test" and code == TEST_CODE):
-        uow.flush()
+        # `commit`, not `flush`. A flush writes into the transaction, and `get_uow` rolls that
+        # transaction back the moment this raises — so every wrong guess undid its own
+        # `attempts += 1` and `OTP_MAX_ATTEMPTS` never counted anything (3B, finding 6). The
+        # increment has to outlive the rejection, which is the one place in `services/` where
+        # a refused request deliberately leaves a row behind: not an audit entry about the
+        # caller, but the code's own record of having been guessed at.
+        uow.commit()
         raise invalid
 
     if matched is not None:

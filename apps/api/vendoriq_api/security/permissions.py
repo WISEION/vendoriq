@@ -78,7 +78,13 @@ PERMISSIONS: dict[str, Permission] = {
     "createVendor": _p(BACK_OFFICE, Scope.VENDORS_WRITE),
     "exportVendors": _p(STAFF, Scope.VENDORS_READ),
     "getVendor": _p(EVERYONE, Scope.VENDORS_READ, vendor_scoped=True),
-    "patchVendor": _p(EVERYONE, Scope.VENDORS_WRITE, vendor_scoped=True),
+    # Not EVERYONE: a commission member's job is to decide on an application, not to
+    # maintain the register (3B, finding 5). `legal_name` and `voen` are the identity every
+    # integration maps on, and `decideApplication` is already commission-only — the two
+    # together let one role both rewrite who a vendor is and rule on it.
+    "patchVendor": _p(
+        frozenset({VENDOR, OFFICER, MANAGER, ADMIN}), Scope.VENDORS_WRITE, vendor_scoped=True
+    ),
     "listVendorCategories": _p(EVERYONE, Scope.VENDORS_READ, vendor_scoped=True),
     "setVendorCategories": _p(EVERYONE, Scope.VENDORS_WRITE, vendor_scoped=True),
     # Confirmation is the officer's judgement — it is what makes a vendor a match candidate.

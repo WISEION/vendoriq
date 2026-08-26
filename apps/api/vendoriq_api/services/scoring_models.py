@@ -166,6 +166,26 @@ def create_draft(
 _PATCHABLE_FIELDS = ("name_az", "name_en", "pass_mark", "validity_months", "criteria", "classes")
 
 
+def _scored_application_exists(session: Session, version: str) -> bool:
+    """Whether any application has been scored against this model version.
+
+    The cycle carries the model version, so this is a join rather than a column on the
+    application — see `QualificationCycle.scoring_model_version`.
+    """
+    return (
+        session.scalar(
+            select(func.count())
+            .select_from(Application)
+            .join(QualificationCycle, QualificationCycle.id == Application.cycle_id)
+            .where(
+                QualificationCycle.scoring_model_version == version,
+                Application.computed.is_not(None),
+            )
+        )
+        or 0
+    ) > 0
+
+
 def patch_draft(uow: UnitOfWork, row: ScoringModelRow, changes: dict[str, Any]) -> ScoringModelRow:
     """Edit an unlocked draft (contract: ``patchScoringModelDraft``).
 
@@ -173,7 +193,13 @@ def patch_draft(uow: UnitOfWork, row: ScoringModelRow, changes: dict[str, Any]) 
     that is exactly where spec §10.3's immutability bites. A locked model that is also
     ``proposed`` or ``active`` is still refused here; create a new draft instead.
     """
-    if row.is_locked:
+    # `is_locked` is the stored flag; `_scored_application_exists` is the fact it stands for.
+    # The flag was the only check here and nothing but the seed ever set it, so every model
+    # the editor created stayed editable no matter how many applications it had scored
+    # (3B, finding 2). `save_evaluation` sets it now — and this second check means a version
+    # that escaped that path is still immutable, because the fact does not depend on anyone
+    # having remembered to record it.
+    if row.is_locked or _scored_application_exists(uow.session, row.version):
         raise ApiError(
             409,
             "conflict",

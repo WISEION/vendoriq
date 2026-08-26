@@ -38,6 +38,10 @@ export function AuditLogScreen() {
   const [to, setTo] = useState('');
   const [page, setPage] = useState(1);
 
+  const { session } = useSession();
+  const permissions =
+    session.status === 'authenticated' ? (session.principal.permissions ?? []) : [];
+
   const query = {
     page,
     page_size: PAGE_SIZE,
@@ -48,7 +52,13 @@ export function AuditLogScreen() {
     ...(to ? { to } : {}),
   };
   const events = useQuery(auditQuery(query));
-  const actors = useQuery(usersQuery({ page_size: 200 }));
+  // Gated on the caller's own permission list, not on a role (ADR-013). `listAuditEvents`
+  // admits a manager and `listUsers` does not, so this screen — which a manager may open —
+  // was firing a request every manager gets a 403 for, leaving the actor filter silently
+  // empty with no indication why (3A, finding 5). Enabled, the dropdown works; disabled, it
+  // says the filter needs the user directory rather than pretending nobody has ever acted.
+  const canListUsers = permissions.includes('listUsers');
+  const actors = useQuery({ ...usersQuery({ page_size: 200 }), enabled: canListUsers });
   const exportMutation = useExportAuditLog();
 
   const totalPages = events.data ? Math.max(1, Math.ceil(events.data.total / PAGE_SIZE)) : 1;
@@ -71,12 +81,14 @@ export function AuditLogScreen() {
         <select
           aria-label={t('adm_filter_actor')}
           value={actorId}
+          disabled={!canListUsers}
+          title={canListUsers ? undefined : t('adm_actor_needs_users')}
           onChange={(event) => {
             setActorId(event.target.value);
             setPage(1);
           }}
         >
-          <option value="">{t('adm_all_actors')}</option>
+          <option value="">{canListUsers ? t('adm_all_actors') : t('adm_actor_needs_users')}</option>
           {(actors.data?.items ?? []).map((user) => (
             <option key={user.id} value={user.id}>
               {user.email}

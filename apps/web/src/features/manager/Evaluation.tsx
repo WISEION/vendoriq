@@ -143,6 +143,11 @@ export function Evaluation({ applicationId }: { applicationId: string }) {
   function handleReset() {
     setRubric(rubricFromRows(data.rows));
     setDirty(false);
+    // `computed` below reads `live.data ?? data.computed`, so leaving the last live result
+    // in place made Reset restore the *inputs* while the score, class and KO verdict stayed
+    // at the abandoned edit — the two halves of the screen disagreeing, with the wrong half
+    // being the one an officer approves from.
+    live.reset();
   }
 
   function openDecision(kind: 'reject' | 'request_info') {

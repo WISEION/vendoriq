@@ -153,6 +153,23 @@ def detail_payload(
     )
 
 
+def raw_snapshot_now(uow: UnitOfWork, vendor: Vendor) -> dict[str, float | None]:
+    """Derive the raw-indicator snapshot from the vendor's profile as it stands right now.
+
+    Spec §5 freezes a snapshot at submission, and this is that derivation. It is a named
+    function because there is a *second* moment the same freeze has to happen: when an
+    application comes back from `information_requested`. Spec §9's loop asks the vendor to
+    correct something and then resumes the review — but the only edge back is
+    `information_requested → under_review`, which never went through `submit`, so the
+    snapshot kept the figure the vendor had been asked to replace and the officer scored that
+    (3B, finding 4). Both freezes now call this.
+    """
+    kind = "sup" if vendor.type is VendorType.SUP else "sub"
+    profile = observations_service.current_profile(uow.session, vendor.id)
+    derived = derive_raw(profile, kind)  # type: ignore[arg-type]
+    return {code: (float(value) if value is not None else None) for code, value in derived.items()}
+
+
 def submit(
     uow: UnitOfWork,
     application: Application,
@@ -185,12 +202,7 @@ def submit(
             },
         )
 
-    kind = "sup" if vendor.type is VendorType.SUP else "sub"
-    profile = observations_service.current_profile(uow.session, vendor.id)
-    derived = derive_raw(profile, kind)  # type: ignore[arg-type]
-    snapshot = {
-        code: (float(value) if value is not None else None) for code, value in derived.items()
-    }
+    snapshot = raw_snapshot_now(uow, vendor)
 
     # The transition raises before anything below runs if the state does not allow it — the
     # only writer of ``application.status`` is ``applications.transition`` (ADR, spec §9).
