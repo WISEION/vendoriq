@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
@@ -79,3 +79,28 @@ class ApiKey(Base, TimestampMixin):
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class RevokedSession(Base):
+    """One row per logout, kept only until that token would have expired anyway.
+
+    The session cookie is a stateless signature, so there is nothing to delete when a user
+    logs out — the token stays valid until `exp` no matter what the server does with its
+    cookies. This is the list of tokens that have been withdrawn early (3B, finding 3,
+    migration `0005`).
+
+    Keyed by the token's own `jti` rather than by user: signing out on a phone must not sign
+    out the desktop.
+    """
+
+    __tablename__ = "revoked_session"
+
+    jti: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("app_user.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    #: When the token expires on its own; after that this row proves nothing new.
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )

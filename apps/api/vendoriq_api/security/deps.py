@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 from ..config import Settings, get_settings
 from ..db import UnitOfWork, get_session
 from ..errors import ApiError
-from ..models import ApiKey, User
+from ..models import ApiKey, RevokedSession, User
 from ..models.enums import UserRole
 from .hashing import hash_token
 from .permissions import permission_for
@@ -52,8 +52,22 @@ def _session_principal(request: Request, session: Session, settings: Settings) -
         user_id = uuid.UUID(str(payload.get("sub")))
     except (ValueError, TypeError):
         return None
+    # Has this particular session been logged out? One primary-key lookup, and only for
+    # sessions minted with a `jti` — the table holds a row per logout and only until that
+    # token would have expired anyway, so a stateless session stays stateless to *establish*
+    # and consults the database only to learn it has been withdrawn (3B, finding 3).
+    jti = payload.get("jti")
+    if jti is not None:
+        try:
+            revoked = session.get(RevokedSession, uuid.UUID(str(jti)))
+        except (ValueError, TypeError):
+            return None
+        if revoked is not None:
+            return None
+
     user = session.get(User, user_id)
-    # Deactivating an account is the revocation mechanism for a stateless session.
+    # Deactivating an account revokes every session the user has at once; logging out
+    # revokes exactly the one above.
     if user is None or not user.is_active:
         return None
     return Principal(

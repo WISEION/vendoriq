@@ -918,16 +918,16 @@ def test_deactivating_an_account_kills_its_live_session(
     assert client.get("/api/auth/me").status_code == 401
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="FINDING 4: POST /auth/logout only clears the cookies in the browser. The session "
-    "token is a stateless signature with no server-side record, so a copy captured before "
-    "logout keeps authenticating for the remaining ACCESS_TOKEN_TTL_MINUTES (8 hours by "
-    "default). There is no way to revoke one session short of deactivating the account.",
-)
 def test_logging_out_revokes_the_session_token(
     client: TestClient, make_user: Any, login: Any
 ) -> None:
+    """FINDING 3, fixed: logout withdraws the token, not just the browser's copy of it.
+
+    The session cookie is a stateless HMAC signature, so clearing cookies left a captured
+    copy authenticating for the rest of its eight hours — on a shared machine, exactly the
+    window logging out exists to close. `revoke_session` records the token's `jti`, and
+    `_session_principal` refuses it from the next request.
+    """
     login(make_user(UserRole.ADMIN))
     captured = dict(client.cookies)
 
@@ -941,6 +941,58 @@ def test_logging_out_revokes_the_session_token(
     assert replayed.status_code == 401, (
         f"a cookie captured before logout still authenticates as {replayed.json().get('role')!r}"
     )
+
+
+def test_logging_out_on_one_device_leaves_the_other_signed_in(
+    client: TestClient, make_user: Any, login: Any, settings: Settings
+) -> None:
+    """Per-token revocation, not per-user: signing out of a phone must not kill the desktop.
+
+    This is why `revoked_session` is keyed by `jti` and not by `user_id`. Stamping the user
+    would have been simpler and would have made every logout a global one — plausible-looking
+    behaviour that users experience as being mysteriously signed out of everything.
+    """
+    user = make_user(UserRole.ADMIN)
+    login(user)
+    phone = dict(client.cookies)
+
+    # A second sign-in for the same account: a different device, a different `jti`.
+    client.cookies.clear()
+    login(user)
+    desktop = dict(client.cookies)
+    assert phone[settings.session_cookie] != desktop[settings.session_cookie]
+
+    # Log out the phone.
+    client.cookies.clear()
+    for name, value in phone.items():
+        client.cookies.set(name, value)
+    client.post("/api/auth/logout")
+
+    client.cookies.clear()
+    for name, value in phone.items():
+        client.cookies.set(name, value)
+    assert client.get("/api/auth/me").status_code == 401
+
+    client.cookies.clear()
+    for name, value in desktop.items():
+        client.cookies.set(name, value)
+    assert client.get("/api/auth/me").status_code == 200, "the desktop was signed out too"
+
+
+def test_logging_out_without_a_session_still_succeeds(client: TestClient) -> None:
+    """Logout must never be able to fail — there is nothing a caller could do about it."""
+    client.cookies.clear()
+    assert client.post("/api/auth/logout").status_code == 204
+
+
+def test_logging_out_twice_is_harmless(client: TestClient, make_user: Any, login: Any) -> None:
+    login(make_user(UserRole.ADMIN))
+    captured = dict(client.cookies)
+    assert client.post("/api/auth/logout").status_code == 204
+    client.cookies.clear()
+    for name, value in captured.items():
+        client.cookies.set(name, value)
+    assert client.post("/api/auth/logout").status_code == 204
 
 
 def test_an_admin_read_key_reads_the_staff_directory_and_the_audit_log(

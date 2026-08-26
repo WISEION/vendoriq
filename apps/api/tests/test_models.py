@@ -8,6 +8,9 @@ from vendoriq_api.models import SOURCE_TRUST_RANK, Base, ObservationSource
 
 EXPECTED_TABLES = {
     "adapter_config",
+    # Not a spec entity: one row per logout, kept only until that token expires anyway, so
+    # that a stateless session can be withdrawn early (3B, finding 3; migration 0005).
+    "revoked_session",
     "api_key",
     "app_user",
     "application",

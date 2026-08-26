@@ -193,8 +193,25 @@ def verify_totp(
 
 
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout(response: Response, settings: Settings = Depends(get_settings)) -> Response:
-    """Clearing the cookies is the whole of it — the session carries no server state."""
+def logout(
+    request: Request,
+    response: Response,
+    uow: UnitOfWork = Depends(get_uow),
+    settings: Settings = Depends(get_settings),
+) -> Response:
+    """Withdraw this session, then clear the cookies.
+
+    Clearing cookies used to be the whole of it, on the reasoning that the session carries no
+    server state. It does not — but the *token* does not stop existing when the browser
+    forgets it, and one captured beforehand kept authenticating for the rest of its eight
+    hours (3B, finding 3). `revoke_session` records this token's `jti`; `_session_principal`
+    refuses it from the next request on.
+
+    No authentication is required to reach this endpoint, and that is deliberate: the caller
+    can only revoke a session they already hold the cookie for, and an expired or malformed
+    cookie revokes nothing. Logging out must not be able to fail.
+    """
+    auth_service.revoke_session(uow, settings, request.cookies.get(settings.session_cookie))
     response.delete_cookie(settings.session_cookie, path="/")
     response.delete_cookie(settings.csrf_cookie, path="/")
     response.delete_cookie(CHALLENGE_COOKIE, path="/")

@@ -690,3 +690,41 @@ which is also the only data in the system that exercises `derive_raw` end to end
 "the Rev4 fixture does not confirm this, because `vendors_seed.json` bypasses `derive_raw`" —
 and stopped there. The observation that the seed never goes through the bridge between the two
 namespaces was the whole bug, written down and not followed.
+
+## ADR-022 — Logging out withdraws the token, not just the browser's copy of it
+
+**Context.** 3B, finding 3. The session cookie is a stateless HMAC signature carrying `sub`,
+`role` and `exp`, and `POST /auth/logout` cleared cookies and nothing else. The comment in
+`security/tokens.py` said so plainly: "the session is stateless so that a horizontally-scaled
+deployment needs no shared session store, and revocation rides on `User.is_active`".
+
+That reasoning is sound about scaling and wrong about revocation. Clearing a cookie makes the
+*browser* forget the token; the token itself keeps verifying until `exp`, eight hours by
+default. A copy captured beforehand — a shared machine, a session left open, anything that
+read the cookie once — went on authenticating for the rest of that window. And
+`User.is_active` is not a substitute: deactivating the account is not what a person asks for
+when they click "Log out".
+
+**Ruling.** A `jti` claim in the token, and a `revoked_session` table holding one row per
+logout (migration `0005`).
+
+* **Per token, not per user.** Keying on `user_id` would have been simpler and would have
+  made every logout a global one. Users experience that as being mysteriously signed out of
+  the desktop because they signed out of the phone. There is a test for it specifically, and
+  it fails under exactly that "simplification".
+* **The statelessness that mattered is kept.** Nothing is read to *establish* a session — the
+  signature still does that alone. The database is consulted only to ask whether a particular
+  session has been withdrawn early: one primary-key lookup against a table sized by
+  concurrent sessions, not by logouts ever performed, since each row is deleted once its
+  token would have expired anyway. A scaled deployment still needs no shared session store,
+  because these rows are self-expiring rather than authoritative.
+* **Logout cannot fail.** A missing, malformed, expired or already-revoked cookie revokes
+  nothing and still returns 204. The endpoint requires no authentication, deliberately: a
+  caller can only revoke a session they already hold the cookie for, and an endpoint that can
+  refuse to log you out is worse than one that occasionally revokes nothing.
+* Sessions minted before this change carry no `jti` and cannot be revoked individually.
+  Clearing the cookie is all logout can do for them and they expire within the TTL.
+
+**Consequences.** `is_active` keeps its meaning — it revokes every session a user has at once
+— and logout revokes exactly one. Both are now true statements rather than one standing in
+for the other.

@@ -6,7 +6,7 @@ Importing this package registers every table on ``Base.metadata`` — Alembic's
 
 from __future__ import annotations
 
-from .auth import ApiKey, OtpCode, User
+from .auth import ApiKey, OtpCode, RevokedSession, User
 from .base import Base, TimestampMixin
 from .catalog import Category, VendorCategory
 from .document import Document
@@ -76,6 +76,7 @@ __all__ = [
     "Project",
     "ProjectStage",
     "QualificationCycle",
+    "RevokedSession",
     "Scope",
     "ScoreClass",
     "ScoringModel",
