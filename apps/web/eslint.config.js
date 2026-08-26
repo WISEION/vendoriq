@@ -19,16 +19,36 @@ export default tseslint.config(
   {
     files: ['src/**/*.{ts,tsx}'],
     rules: {
-      // Gate 2 of the build brief: no business logic in the frontend. Scoring and matching
-      // live in packages/scoring and are reached only through the API.
+      // Gate 2 of the build brief: no business logic in the frontend.
+      //
+      // Two rules, and it is worth being precise about what they do and do not prove. They
+      // catch the frontend *reaching for* server-side code — by package name, and by climbing
+      // out of `apps/web` to any sibling at all, which is the form no new package name can
+      // evade. They cannot catch someone re-implementing the class bands inline in a
+      // component; nothing mechanical can. That is what review and "every number arrives
+      // computed from the API" are for, and the report says so rather than claiming the lint
+      // rule is the whole guarantee.
       'no-restricted-imports': [
         'error',
         {
           patterns: [
             {
-              group: ['**/scoring/**', '**/matching/**', 'vendoriq_scoring*', '@vendoriq/scoring*'],
+              group: [
+                '**/scoring/**',
+                '**/matching/**',
+                'vendoriq_scoring*',
+                'vendoriq_excel_import*',
+                '@vendoriq/scoring*',
+              ],
               message:
-                'Scoring and matching are server-side (packages/scoring). Call the API instead.',
+                'Scoring, matching and workbook parsing are server-side (packages/*). Call the API instead.',
+            },
+            {
+              // `apps/web/src` is four levels below the repo root, so anything that climbs
+              // that far is leaving the frontend entirely.
+              group: ['../../../*', '../../../../*'],
+              message:
+                'The web app may not import from outside apps/web. Everything it needs arrives over the API (docs/BUILD_BRIEF.md §2).',
             },
           ],
         },
