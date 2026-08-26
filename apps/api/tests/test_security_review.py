@@ -779,35 +779,46 @@ def test_a_wrong_otp_code_burns_an_attempt(
     assert row.attempts == 3, f"three wrong codes left attempts={row.attempts}"
 
 
-def test_production_refuses_the_placeholder_session_secret() -> None:
+def test_production_refuses_the_placeholder_session_secret(monkeypatch: pytest.MonkeyPatch) -> None:
     """FINDING 9, fixed: the companion guard to the `AUTH_MODE` one, which was missing.
 
     One string signs every session cookie, TOTP challenge, upload ticket and signed storage
     URL. Left at the value printed in `infra/.env.example`, anybody who has read this
     repository can mint a session for any role — so it is checked in `Settings`, which both
     the compose path and a native deployment pass through.
+
+    `delenv`, and it is the whole test. The case being described is a deployment that never
+    set `SESSION_SECRET` at all, so the variable has to be *absent* — `_env_file=None`
+    suppresses the `.env` file and nothing else, and pydantic-settings still reads the
+    process environment. Without this the test passed locally, where nothing exports the
+    variable, and silently asserted nothing in CI, where the workflow exports a 32-character
+    one. It read as green in the place it mattered least.
     """
+    monkeypatch.delenv("SESSION_SECRET", raising=False)
     with pytest.raises(ValueError, match="SESSION_SECRET"):
         Settings(_env_file=None, app_env="production", auth_mode="live")  # type: ignore[call-arg]
 
 
-def test_production_refuses_a_short_session_secret() -> None:
+def test_production_refuses_a_short_session_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SESSION_SECRET", raising=False)
     with pytest.raises(ValueError, match="at least"):
         Settings(  # type: ignore[call-arg]
             _env_file=None, app_env="production", auth_mode="live", session_secret="short"
         )
 
 
-def test_a_real_secret_in_production_is_accepted() -> None:
+def test_a_real_secret_in_production_is_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
     """The guard has to let a correct deployment through — otherwise it is just an outage."""
+    monkeypatch.delenv("SESSION_SECRET", raising=False)
     settings = Settings(  # type: ignore[call-arg]
         _env_file=None, app_env="production", auth_mode="live", session_secret="0" * 64
     )
     assert settings.app_env == "production"
 
 
-def test_development_is_left_alone() -> None:
+def test_development_is_left_alone(monkeypatch: pytest.MonkeyPatch) -> None:
     """`make up` on a laptop must keep working with the checked-in defaults."""
+    monkeypatch.delenv("SESSION_SECRET", raising=False)
     assert Settings(_env_file=None).session_secret  # type: ignore[call-arg]
 
 

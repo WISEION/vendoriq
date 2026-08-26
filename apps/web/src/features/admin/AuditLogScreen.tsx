@@ -28,8 +28,9 @@ export function AuditLogScreen() {
   const { t, locale } = useLocale();
   const stamp = useTimestamp();
   const { session } = useSession();
-  const canExport =
-    session.status === 'authenticated' && session.principal.permissions.includes('exportAuditLog');
+  const permissions =
+    session.status === 'authenticated' ? session.principal.permissions : [];
+  const canExport = permissions.includes('exportAuditLog');
 
   const [actorId, setActorId] = useState('');
   const [entityType, setEntityType] = useState('');
@@ -37,10 +38,6 @@ export function AuditLogScreen() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [page, setPage] = useState(1);
-
-  const { session } = useSession();
-  const permissions =
-    session.status === 'authenticated' ? (session.principal.permissions ?? []) : [];
 
   const query = {
     page,
