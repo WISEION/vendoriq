@@ -1,0 +1,242 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "22"
+  # Every Python job talks to the service container below.
+  DATABASE_URL: postgresql+psycopg://vendoriq:vendoriq@localhost:5432/vendoriq
+  TEST_DATABASE_URL: postgresql+psycopg://vendoriq:vendoriq@localhost:5432/vendoriq_test
+  APP_ENV: development
+  AUTH_MODE: test
+  SESSION_SECRET: ci-secret-not-used-in-production
+  STORAGE_BACKEND: local
+
+jobs:
+  python:
+    name: Python — ruff, mypy, pytest
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vendoriq
+          POSTGRES_PASSWORD: vendoriq
+          POSTGRES_DB: vendoriq
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vendoriq"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: uv sync --all-packages --all-groups
+
+      - name: Create the test database
+        run: |
+          PGPASSWORD=vendoriq psql -h localhost -U vendoriq -d vendoriq \
+            -c "CREATE DATABASE vendoriq_test OWNER vendoriq"
+
+      - name: ruff (lint)
+        run: uv run ruff check --output-format=github .
+
+      - name: ruff (format)
+        run: uv run ruff format --check .
+
+      - name: mypy
+        run: uv run mypy .
+
+      - name: Apply migrations to both databases
+        working-directory: apps/api
+        run: |
+          DATABASE_URL="$DATABASE_URL"      uv run alembic upgrade head
+          DATABASE_URL="$TEST_DATABASE_URL" uv run alembic upgrade head
+
+      - name: Migrations match the models
+        working-directory: apps/api
+        run: uv run alembic check
+
+      - name: pytest
+        run: uv run pytest --cov=packages --cov=apps/api/vendoriq_api --cov-report=term-missing
+
+  web:
+    name: Web — tsc, eslint, vitest, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+      - name: eslint
+        run: npm run lint
+
+      - name: tsc
+        run: npm run typecheck
+
+      - name: vitest
+        run: npm run test
+
+      - name: vite build
+        run: npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/dist
+          retention-days: 5
+
+  e2e:
+    name: Playwright
+    runs-on: ubuntu-latest
+    needs: [python, web]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vendoriq
+          POSTGRES_PASSWORD: vendoriq
+          POSTGRES_DB: vendoriq
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vendoriq"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-packages --all-groups
+          cd apps/web && (npm ci --no-audit --no-fund || npm install --no-audit --no-fund)
+
+      - name: Migrate and seed
+        run: |
+          cd apps/api && uv run alembic upgrade head && cd ../..
+          uv run python -m vendoriq_api.seed load --real --demo || \
+            echo "seed CLI lands in phase 1E; the shell suite does not need data yet"
+
+      - name: Install the browser
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+
+      - name: Start the API
+        run: |
+          uv run uvicorn vendoriq_api.main:app --app-dir apps/api --port 8000 &
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:8000/health && break || sleep 1
+          done
+
+      - name: Playwright
+        working-directory: apps/web
+        run: npm run e2e
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          retention-days: 7
+
+  contract:
+    name: OpenAPI contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: uv sync --all-packages --all-groups
+
+      # openapi-spec-validator rather than @redocly/cli — see docs/DECISIONS.md ADR-005.
+      - name: Validate docs/openapi.yaml
+        run: uv run pytest apps/api/tests/test_openapi_contract.py -q
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/Dockerfile.api
+          push: false
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Build the worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/Dockerfile.worker
+          push: false
+          cache-from: type=gha,scope=worker
+          cache-to: type=gha,mode=max,scope=worker
+
+      - name: Build the web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/Dockerfile.web
+          push: false
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: Validate the compose file
+        run: docker compose -f infra/docker-compose.yml --profile dev config --quiet
+        env:
+          SESSION_SECRET: ci-secret-not-used-in-production

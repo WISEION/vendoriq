@@ -1,0 +1,3506 @@
+openapi: 3.1.0
+info:
+  title: VendorIQ API
+  version: 0.1.0
+  summary: Vendor management & market intelligence for construction tendering.
+  description: |
+    The public REST contract of VendorIQ. **Every UI action goes through this API** — the
+    frontend holds no business logic (brief §2), so anything a screen can do is an operation
+    below, and any other product can do the same with an API key.
+
+    This document is hand-written and is the source of truth: `apps/api` serves it verbatim at
+    `/api/openapi.json`, `/api/openapi.yaml` and `/api/docs`, and route handlers are validated
+    against it rather than generating it. Changing it is a contract change — see
+    `CONTRIBUTING.md`.
+
+    ### Conventions
+
+    * **Ids** are UUIDs, stable across systems. `external_ref` on vendors and projects maps to
+      a foreign system's own id.
+    * **Errors** always use one envelope: `{"error": {"code", "message", "details"}}`.
+    * **Collections** always return `{"items", "total", "page", "page_size"}`.
+    * **Money** is AZN. The Rev4 methodology sheet labels turnover USD; the data is AZN and the
+      system stores AZN (spec §16).
+    * **Language** — user-facing text carries `_az` and `_en` fields; the server never returns a
+      single pre-translated sentence for the UI, it returns keys or both languages.
+    * **Field codes** (`A.1` … `G.7`, tables `C.t1`, `C.t2`, `G.t1`) come from spec Appendix A;
+      **document codes** (`A-01` … `H-02`) from Appendix B; **criterion codes** from the scoring
+      model version.
+    * **Demo data** is flagged `is_demo` and is removable with `make purge-demo`.
+  license:
+    name: Proprietary
+  contact:
+    name: VendorIQ — commercial department
+servers:
+  - url: http://localhost:8000/api
+    description: Local development (native, `make api`)
+  - url: http://localhost/api
+    description: Local docker compose (dev profile)
+tags:
+  - name: health
+    description: Liveness and build information.
+  - name: auth
+    description: Vendor one-time codes, staff password + TOTP, session and identity.
+  - name: vendors
+    description: The register — profiles, categories, contacts, observations, documents.
+  - name: applications
+    description: Cycle-bound applications, evaluation, decisions and commission exports.
+  - name: cycles
+    description: Qualification cycles and invitations.
+  - name: scoring-models
+    description: Versioned criteria sets; immutable once used.
+  - name: projects
+    description: Projects, work packages and matching runs.
+  - name: intel
+    description: Market intelligence views (spec §12).
+  - name: integrations
+    description: Adapters, Excel import, API keys and webhooks.
+  - name: admin
+    description: Categories, users, settings and the audit log.
+  - name: events
+    description: The domain event log.
+security:
+  - sessionCookie: []
+  - apiKey: []
+
+paths:
+  # ───────────────────────────────── health ─────────────────────────────────
+  /health:
+    get:
+      tags: [health]
+      operationId: getHealth
+      summary: Liveness probe
+      description: Also reports which modes the process runs in, so a dev banner can warn about `AUTH_MODE=test`.
+      security: []
+      responses:
+        "200":
+          description: The API is up.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+
+  # ────────────────────────────────── auth ──────────────────────────────────
+  /auth/vendor/register:
+    post:
+      tags: [auth]
+      operationId: registerVendor
+      summary: Self-registration of a vendor
+      description: |
+        Creates a `registered` vendor and its primary contact, and sends the first one-time
+        code. VÖEN must be ten digits and unique; an existing VÖEN returns `409 conflict`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VendorRegistration" }
+      responses:
+        "201":
+          description: Vendor and portal account created; a code has been sent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OtpChallenge" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+  /auth/otp/request:
+    post:
+      tags: [auth]
+      operationId: requestOtp
+      summary: Request a one-time code
+      description: |
+        Rate limited per e-mail and per IP. With `AUTH_MODE=test` the code is written to the
+        server log and returned in `debug_code` so the dev banner can show it; with
+        `AUTH_MODE=live` `debug_code` is always absent.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OtpRequest" }
+      responses:
+        "202":
+          description: A code was sent if the address belongs to a vendor account.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OtpChallenge" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /auth/otp/verify:
+    post:
+      tags: [auth]
+      operationId: verifyOtp
+      summary: Exchange a one-time code for a session
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OtpVerification" }
+      responses:
+        "200":
+          description: Session cookie set.
+          headers:
+            Set-Cookie:
+              description: httpOnly, SameSite=Lax session cookie.
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /auth/staff/login:
+    post:
+      tags: [auth]
+      operationId: staffLogin
+      summary: Staff login with e-mail and password
+      description: >-
+        Returns `totp_required: true` and a short-lived challenge; no session is issued until
+        TOTP is verified.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StaffLogin" }
+      responses:
+        "200":
+          description: Password accepted; second factor required.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TotpChallenge" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /auth/staff/totp/verify:
+    post:
+      tags: [auth]
+      operationId: verifyTotp
+      summary: Verify the TOTP second factor
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TotpVerification" }
+      responses:
+        "200":
+          description: Session cookie set.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: End the session
+      responses:
+        "204": { description: Session cleared. }
+  /auth/me:
+    get:
+      tags: [auth]
+      operationId: getMe
+      summary: The authenticated identity and its permissions
+      responses:
+        "200":
+          description: Current user.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Me" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+
+  # ───────────────────────────────── vendors ────────────────────────────────
+  /vendors:
+    get:
+      tags: [vendors]
+      operationId: listVendors
+      summary: The vendor register
+      description: Filters correspond one-to-one to the register screen's controls (spec §8).
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - name: type
+          in: query
+          description: "`both` vendors match a filter for `sub` and for `sup`."
+          schema: { $ref: "#/components/schemas/VendorType" }
+        - name: category
+          in: query
+          description: Category code; repeat for several (OR).
+          schema: { type: array, items: { type: string } }
+        - name: class
+          in: query
+          description: Latest result class.
+          schema: { type: array, items: { $ref: "#/components/schemas/ScoreClass" } }
+        - name: status
+          in: query
+          schema: { type: array, items: { $ref: "#/components/schemas/VendorStatus" } }
+        - name: region
+          in: query
+          schema: { type: string }
+        - name: q
+          in: query
+          description: Free text over legal name and VÖEN.
+          schema: { type: string }
+        - name: include_demo
+          in: query
+          schema: { type: boolean, default: true }
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [legal_name, -legal_name, score, -score, updated_at, -updated_at]
+            default: legal_name
+      responses:
+        "200":
+          description: One page of the register.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VendorPage" }
+    post:
+      tags: [vendors]
+      operationId: createVendor
+      summary: Create a vendor (officer)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VendorCreate" }
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Vendor" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+  /vendors/export.xlsx:
+    get:
+      tags: [vendors]
+      operationId: exportVendors
+      summary: Export the filtered register to Excel
+      description: Takes the same filters as `listVendors`; the export follows the current filter, not the whole register.
+      parameters:
+        - name: type
+          in: query
+          schema: { $ref: "#/components/schemas/VendorType" }
+        - name: category
+          in: query
+          schema: { type: array, items: { type: string } }
+        - name: class
+          in: query
+          schema: { type: array, items: { $ref: "#/components/schemas/ScoreClass" } }
+        - name: status
+          in: query
+          schema: { type: array, items: { $ref: "#/components/schemas/VendorStatus" } }
+        - name: region
+          in: query
+          schema: { type: string }
+        - name: q
+          in: query
+          schema: { type: string }
+        - $ref: "#/components/parameters/LocaleParam"
+      responses:
+        "200": { $ref: "#/components/responses/XlsxFile" }
+  /vendors/{vendor_id}:
+    parameters: [{ $ref: "#/components/parameters/VendorId" }]
+    get:
+      tags: [vendors]
+      operationId: getVendor
+      summary: Vendor detail
+      description: Includes the current profile resolved from observations, the latest score and the document state.
+      responses:
+        "200":
+          description: The vendor.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VendorDetail" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [vendors]
+      operationId: patchVendor
+      summary: Update vendor attributes
+      description: |
+        Writes a `manual` observation per changed field, so the change keeps its provenance and
+        appears in the audit log. A vendor user editing an already-prequalified profile creates a
+        change request instead of a direct edit (spec §7).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VendorPatch" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Vendor" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /vendors/{vendor_id}/categories:
+    parameters: [{ $ref: "#/components/parameters/VendorId" }]
+    get:
+      tags: [vendors]
+      operationId: listVendorCategories
+      summary: Categories claimed by the vendor
+      responses:
+        "200":
+          description: Assignments with their confirmation state.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/VendorCategory" }
+    put:
+      tags: [vendors]
+      operationId: setVendorCategories
+      summary: Replace the vendor's category selection
+      description: The vendor selects; the selection arrives unconfirmed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [category_codes]
+              properties:
+                category_codes:
+                  type: array
+                  items: { type: string }
+      responses:
+        "200":
+          description: Stored.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/VendorCategory" }
+  /vendors/{vendor_id}/categories/confirm:
+    parameters: [{ $ref: "#/components/parameters/VendorId" }]
+    post:
+      tags: [vendors]
+      operationId: confirmVendorCategories
+      summary: Officer confirms category assignments
+      description: Only confirmed categories make a vendor a candidate in project matching (spec §11.1).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [category_codes]
+              properties:
+                category_codes:
+                  type: array
+                  items: { type: string }
+                confirmed: { type: boolean, default: true }
+      responses:
+        "200":
+          description: Confirmation state updated.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/VendorCategory" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /vendors/{vendor_id}/contacts:
+    parameters: [{ $ref: "#/components/parameters/VendorId" }]
+    get:
+      tags: [vendors]
+      operationId: listContacts
+      summary: Contact people
+      responses:
+        "200":
+          description: Contacts.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Contact" }
+    post:
+      tags: [vendors]
+      operationId: createContact
+      summary: Add a contact
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ContactInput" }
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Contact" }
+  /vendors/{vendor_id}/contacts/{contact_id}:
+    parameters:
+      - { $ref: "#/components/parameters/VendorId" }
+      - name: contact_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [vendors]
+      operationId: patchContact
+      summary: Update a contact
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ContactInput" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Contact" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [vendors]
+      operationId: deleteContact
+      summary: Remove a contact
+      description: The primary contact cannot be deleted while it owns the portal account.
+      responses:
+        "204": { description: Deleted. }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /vendors/{vendor_id}/observations:
+    parameters: [{ $ref: "#/components/parameters/VendorId" }]
+    get:
+      tags: [vendors]
+      operationId: listObservations
+      summary: Provenance history for the vendor's fields
+      description: |
+        Append-only. Ordered newest first. With `current_only=true` the server returns one row
+        per field code — the observation with the best trust rank and, within that, the newest
+        `observed_at` (spec §6.6).
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - name: field_code
+          in: query
+          schema: { type: array, items: { type: string } }
+        - name: source
+          in: query
+          schema: { type: array, items: { $ref: "#/components/schemas/ObservationSource" } }
+        - name: current_only
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: Observations.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FieldObservationPage" }
+    post:
+      tags: [vendors]
+      operationId: createObservation
+      summary: Manual entry or correction
+      description: A reason is mandatory (spec §6.5); the observation is recorded with source `manual`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ObservationInput" }
+      responses:
+        "201":
+          description: Recorded.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FieldObservation" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /vendors/{vendor_id}/documents:
+    parameters: [{ $ref: "#/components/parameters/VendorId" }]
+    get:
+      tags: [vendors]
+      operationId: listDocuments
+      summary: The 38-item document checklist for this vendor
+      description: Always returns every catalogue code, including the ones with status `missing`.
+      parameters:
+        - name: status
+          in: query
+          schema: { type: array, items: { $ref: "#/components/schemas/DocumentStatus" } }
+        - name: expiring_within_days
+          in: query
+          schema: { type: integer, minimum: 0 }
+      responses:
+        "200":
+          description: Checklist.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Document" }
+  /vendors/{vendor_id}/documents/upload-init:
+    parameters: [{ $ref: "#/components/parameters/VendorId" }]
+    post:
+      tags: [vendors]
+      operationId: initDocumentUpload
+      summary: Start a document upload
+      description: |
+        Returns a pre-signed target the browser uploads to directly (S3/MinIO) or a local
+        upload URL when `STORAGE_BACKEND=local`. PDF only; size limit comes from settings.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UploadInit" }
+      responses:
+        "200":
+          description: Upload target.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadTicket" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+  /vendors/{vendor_id}/documents/upload-complete:
+    parameters: [{ $ref: "#/components/parameters/VendorId" }]
+    post:
+      tags: [vendors]
+      operationId: completeDocumentUpload
+      summary: Confirm an upload and record the document
+      description: |
+        Sets status `uploaded`. For `A-05` the expiry is forced to issue date + 3 months
+        regardless of what the client sends (spec §7).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UploadCompletion" }
+      responses:
+        "200":
+          description: Document recorded.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Document" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /vendors/{vendor_id}/documents/{document_id}:
+    parameters:
+      - { $ref: "#/components/parameters/VendorId" }
+      - name: document_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [vendors]
+      operationId: patchDocument
+      summary: Update status, dates or verification
+      description: Officers set `verified_by`/`verified_at` here; vendors may only set `in_preparation` / `not_applicable`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DocumentPatch" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Document" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    get:
+      tags: [vendors]
+      operationId: getDocumentDownload
+      summary: A signed, expiring download link
+      responses:
+        "200":
+          description: Link.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DownloadTicket" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /vendors/{vendor_id}/invite:
+    parameters: [{ $ref: "#/components/parameters/VendorId" }]
+    post:
+      tags: [vendors]
+      operationId: inviteVendor
+      summary: Invite the vendor to a cycle
+      description: Moves the vendor to `invited`, creates the application row and e-mails the contact.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cycle_id]
+              properties:
+                cycle_id: { type: string, format: uuid }
+                message_az: { type: string }
+                message_en: { type: string }
+      responses:
+        "201":
+          description: Application created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Application" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /vendors/{vendor_id}/suspend:
+    parameters: [{ $ref: "#/components/parameters/VendorId" }]
+    post:
+      tags: [vendors]
+      operationId: suspendVendor
+      summary: Suspend or lift a suspension (manager)
+      description: A reason is mandatory (performance, tax debt, incident — spec §9).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [suspended, reason]
+              properties:
+                suspended: { type: boolean }
+                reason: { type: string, minLength: 3 }
+      responses:
+        "200":
+          description: New status.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Vendor" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  # ─────────────────────────────── applications ──────────────────────────────
+  /applications:
+    get:
+      tags: [applications]
+      operationId: listApplications
+      summary: The evaluation queue
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - name: cycle_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { type: array, items: { $ref: "#/components/schemas/ApplicationStatus" } }
+        - name: vendor_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: q
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: One page of applications.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApplicationPage" }
+  /applications/{application_id}:
+    parameters: [{ $ref: "#/components/parameters/ApplicationId" }]
+    get:
+      tags: [applications]
+      operationId: getApplication
+      summary: Application detail
+      description: |
+        Carries the answers, the raw indicators (live before submission, from `raw_snapshot`
+        after), the rubric cells and the computed scores. A vendor sees the score breakdown only
+        after the commission decision (spec §7).
+      responses:
+        "200":
+          description: The application.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApplicationDetail" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /applications/{application_id}/answers:
+    parameters: [{ $ref: "#/components/parameters/ApplicationId" }]
+    patch:
+      tags: [applications]
+      operationId: patchAnswers
+      summary: Autosave form answers
+      description: |
+        A partial map keyed by field code; tables are arrays. Each answer becomes a `portal`
+        observation. Returns the recomputed completion meter and the pre-submission check.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AnswerPatch" }
+      responses:
+        "200":
+          description: Saved.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnswerState" }
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422": { $ref: "#/components/responses/ValidationError" }
+  /applications/{application_id}/submit:
+    parameters: [{ $ref: "#/components/parameters/ApplicationId" }]
+    post:
+      tags: [applications]
+      operationId: submitApplication
+      summary: Sign the declaration and submit
+      description: |
+        Refused with `409` unless mandatory fields, mandatory documents and the three knock-out
+        answers are complete. On success the raw indicators are frozen into `raw_snapshot`, the
+        status becomes `submitted` and `application.submitted` is emitted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeclarationInput" }
+      responses:
+        "200":
+          description: Submitted.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApplicationDetail" }
+        "409":
+          description: The pre-submission check failed; `details.checks` lists what is missing.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+  /applications/{application_id}/evaluation:
+    parameters: [{ $ref: "#/components/parameters/ApplicationId" }]
+    get:
+      tags: [applications]
+      operationId: getEvaluation
+      summary: The evaluation sheet
+      description: Every criterion with its raw indicator, evidence document code, rubric cell and points.
+      responses:
+        "200":
+          description: Evaluation.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Evaluation" }
+    put:
+      tags: [applications]
+      operationId: putEvaluation
+      summary: Save the officer's rubric scores
+      description: Rubric cells are integers 0–3 keyed by criterion code. Saving recomputes and stores `computed`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RubricInput" }
+      responses:
+        "200":
+          description: Saved and recomputed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Evaluation" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: The application's model version is locked against edits at this status.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+  /applications/{application_id}/compute:
+    parameters: [{ $ref: "#/components/parameters/ApplicationId" }]
+    post:
+      tags: [applications]
+      operationId: computeScore
+      summary: Score without saving
+      description: |
+        Powers the live evaluation screen: the client sends the rubric cells it currently has on
+        screen and gets per-criterion points, group totals, total, KO and class back. **Nothing is
+        persisted** — this is what keeps scoring out of the frontend.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ComputeRequest" }
+      responses:
+        "200":
+          description: Computed scores.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScoreResult" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+  /applications/{application_id}/decide:
+    parameters: [{ $ref: "#/components/parameters/ApplicationId" }]
+    post:
+      tags: [applications]
+      operationId: decideApplication
+      summary: Approve, reject or request information
+      description: |
+        `approve` is refused below the pass mark or on a knock-out failure. A justification is
+        mandatory for `reject` and `request_info`. Emits `vendor.prequalified` on approval.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DecisionInput" }
+      responses:
+        "200":
+          description: Decision recorded.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApplicationDetail" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: The decision is not allowed from this state or score.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+  /applications/{application_id}/second-evaluator:
+    parameters: [{ $ref: "#/components/parameters/ApplicationId" }]
+    put:
+      tags: [applications]
+      operationId: putSecondEvaluation
+      summary: Record the second evaluator's rubric set
+      description: Optional mode (spec §10.3). The response flags criteria where the two sets differ by more than one point.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RubricInput" }
+      responses:
+        "200":
+          description: Saved, with the divergence list.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SecondEvaluation" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /cycles/{cycle_id}/export-summary.xlsx:
+    parameters: [{ $ref: "#/components/parameters/CycleId" }]
+    get:
+      tags: [applications]
+      operationId: exportCommissionSummaryXlsx
+      summary: Commission summary for signature (Excel)
+      description: Reproduces the layout of the workbook sheet "5. Nəticə Xülasəsi".
+      parameters: [{ $ref: "#/components/parameters/LocaleParam" }]
+      responses:
+        "200": { $ref: "#/components/responses/XlsxFile" }
+  /cycles/{cycle_id}/export-summary.pdf:
+    parameters: [{ $ref: "#/components/parameters/CycleId" }]
+    get:
+      tags: [applications]
+      operationId: exportCommissionSummaryPdf
+      summary: Commission summary for signature (PDF)
+      parameters: [{ $ref: "#/components/parameters/LocaleParam" }]
+      responses:
+        "200": { $ref: "#/components/responses/PdfFile" }
+
+  # ────────────────────────────────── cycles ─────────────────────────────────
+  /cycles:
+    get:
+      tags: [cycles]
+      operationId: listCycles
+      summary: Qualification cycles
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - name: status
+          in: query
+          schema: { type: array, items: { $ref: "#/components/schemas/CycleStatus" } }
+        - name: kind
+          in: query
+          schema: { $ref: "#/components/schemas/CycleKind" }
+      responses:
+        "200":
+          description: Cycles.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CyclePage" }
+    post:
+      tags: [cycles]
+      operationId: createCycle
+      summary: Create a cycle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CycleInput" }
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cycle" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+  /cycles/{cycle_id}:
+    parameters: [{ $ref: "#/components/parameters/CycleId" }]
+    get:
+      tags: [cycles]
+      operationId: getCycle
+      summary: Cycle detail with application counts by status
+      responses:
+        "200":
+          description: The cycle.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CycleDetail" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [cycles]
+      operationId: patchCycle
+      summary: Update a cycle
+      description: The scoring model version cannot change once an application has been scored.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CycleInput" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cycle" }
+        "409": { $ref: "#/components/responses/Conflict" }
+    delete:
+      tags: [cycles]
+      operationId: deleteCycle
+      summary: Delete a draft cycle
+      responses:
+        "204": { description: Deleted. }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /cycles/{cycle_id}/invite:
+    parameters: [{ $ref: "#/components/parameters/CycleId" }]
+    post:
+      tags: [cycles]
+      operationId: inviteToCycle
+      summary: Bulk-invite vendors to the cycle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [vendor_ids]
+              properties:
+                vendor_ids:
+                  type: array
+                  items: { type: string, format: uuid }
+                message_az: { type: string }
+                message_en: { type: string }
+      responses:
+        "200":
+          description: Per-vendor outcome.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [invited, skipped]
+                properties:
+                  invited:
+                    type: array
+                    items: { $ref: "#/components/schemas/Application" }
+                  skipped:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        vendor_id: { type: string, format: uuid }
+                        reason: { type: string, examples: ["already_invited", "suspended"] }
+
+  # ─────────────────────────────── scoring models ────────────────────────────
+  /scoring-models:
+    get:
+      tags: [scoring-models]
+      operationId: listScoringModels
+      summary: All model versions
+      parameters:
+        - name: vendor_type
+          in: query
+          schema: { $ref: "#/components/schemas/VendorType" }
+      responses:
+        "200":
+          description: Versions, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ScoringModelSummary" }
+    post:
+      tags: [scoring-models]
+      operationId: createScoringModelDraft
+      summary: Create a draft from an existing version
+      description: |
+        Editing never mutates a used version (spec §10.3): this copies `from_version` into a new
+        unlocked draft that the editor then patches.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [from_version, version]
+              properties:
+                from_version: { type: string, examples: ["sub-4"] }
+                version: { type: string, examples: ["sub-5"] }
+                name_az: { type: string }
+                name_en: { type: string }
+                note: { type: string, description: What changed and why. }
+      responses:
+        "201":
+          description: Draft created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScoringModel" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /scoring-models/{version}:
+    parameters: [{ $ref: "#/components/parameters/ModelVersion" }]
+    get:
+      tags: [scoring-models]
+      operationId: getScoringModel
+      summary: Full criteria set of one version
+      responses:
+        "200":
+          description: The model.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScoringModel" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [scoring-models]
+      operationId: patchScoringModelDraft
+      summary: Edit an unlocked draft
+      description: Refused with `409` when `is_locked` is true — a used version is immutable.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScoringModelPatch" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScoringModel" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /scoring-models/{version}/test-rescore:
+    parameters: [{ $ref: "#/components/parameters/ModelVersion" }]
+    post:
+      tags: [scoring-models]
+      operationId: testRescore
+      summary: Re-score a past cycle with this draft
+      description: |
+        Answers "what would this change have done?". Nothing is written: every application of the
+        cycle is scored with both versions and the deltas are returned.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cycle_id]
+              properties:
+                cycle_id: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Side-by-side comparison.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RescoreReport" }
+  /scoring-models/{version}/publish:
+    parameters: [{ $ref: "#/components/parameters/ModelVersion" }]
+    post:
+      tags: [scoring-models]
+      operationId: publishScoringModel
+      summary: Publish a draft
+      description: Sets `effective_from` and makes the version selectable for new cycles.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                effective_from: { type: string, format: date }
+      responses:
+        "200":
+          description: Published.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScoringModel" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  # ───────────────────────────────── projects ────────────────────────────────
+  /projects:
+    get:
+      tags: [projects]
+      operationId: listProjects
+      summary: Project list with coverage and go/no-go
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - name: stage
+          in: query
+          schema: { type: array, items: { $ref: "#/components/schemas/ProjectStage" } }
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: include_demo
+          in: query
+          schema: { type: boolean, default: true }
+      responses:
+        "200":
+          description: Projects.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProjectPage" }
+    post:
+      tags: [projects]
+      operationId: createProject
+      summary: Create a project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProjectInput" }
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /projects/{project_id}:
+    parameters: [{ $ref: "#/components/parameters/ProjectId" }]
+    get:
+      tags: [projects]
+      operationId: getProject
+      summary: Project detail with its packages
+      responses:
+        "200":
+          description: The project.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProjectDetail" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [projects]
+      operationId: patchProject
+      summary: Update a project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProjectInput" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+    delete:
+      tags: [projects]
+      operationId: deleteProject
+      summary: Delete a project and its packages
+      responses:
+        "204": { description: Deleted. }
+  /projects/{project_id}/packages:
+    parameters: [{ $ref: "#/components/parameters/ProjectId" }]
+    get:
+      tags: [projects]
+      operationId: listPackages
+      summary: Work and material packages
+      responses:
+        "200":
+          description: Packages.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/WorkPackage" }
+    post:
+      tags: [projects]
+      operationId: createPackage
+      summary: Add a package
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WorkPackageInput" }
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkPackage" }
+  /projects/{project_id}/packages/{package_id}:
+    parameters:
+      - { $ref: "#/components/parameters/ProjectId" }
+      - name: package_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [projects]
+      operationId: patchPackage
+      summary: Update a package
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WorkPackageInput" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkPackage" }
+    delete:
+      tags: [projects]
+      operationId: deletePackage
+      summary: Remove a package
+      responses:
+        "204": { description: Deleted. }
+  /projects/{project_id}/match:
+    parameters: [{ $ref: "#/components/parameters/ProjectId" }]
+    post:
+      tags: [projects]
+      operationId: runMatch
+      summary: Run matching and persist the result
+      description: |
+        Thresholds default to the organisation settings and may be overridden per run; the values
+        actually used are stored on the run so an old result stays explainable (spec §11.2).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MatchParams" }
+      responses:
+        "201":
+          description: The run.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MatchRun" }
+  /projects/{project_id}/match/latest:
+    parameters: [{ $ref: "#/components/parameters/ProjectId" }]
+    get:
+      tags: [projects]
+      operationId: getLatestMatch
+      summary: The most recent matching run
+      responses:
+        "200":
+          description: The run.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MatchRun" }
+        "404":
+          description: The project has never been matched.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+  /projects/{project_id}/export.xlsx:
+    parameters: [{ $ref: "#/components/parameters/ProjectId" }]
+    get:
+      tags: [projects]
+      operationId: exportProject
+      summary: Export packages and the latest matching result
+      parameters: [{ $ref: "#/components/parameters/LocaleParam" }]
+      responses:
+        "200": { $ref: "#/components/responses/XlsxFile" }
+
+  # ────────────────────────────────── intel ──────────────────────────────────
+  /intel/overview:
+    get:
+      tags: [intel]
+      operationId: getIntelOverview
+      summary: Dashboard KPI tiles
+      description: Vendors in register, prequalified, awaiting review, documents expiring in 60 days.
+      responses:
+        "200":
+          description: KPIs.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IntelOverview" }
+  /intel/coverage:
+    get:
+      tags: [intel]
+      operationId: getIntelCoverage
+      summary: Category × class coverage matrix
+      parameters:
+        - name: kind
+          in: query
+          schema: { $ref: "#/components/schemas/CategoryKind" }
+      responses:
+        "200":
+          description: One row per category.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CoverageRow" }
+  /intel/class-distribution:
+    get:
+      tags: [intel]
+      operationId: getClassDistribution
+      summary: How many vendors sit in each class
+      parameters:
+        - name: vendor_type
+          in: query
+          schema: { $ref: "#/components/schemas/VendorType" }
+      responses:
+        "200":
+          description: Counts by class.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [cls, count]
+                  properties:
+                    cls: { $ref: "#/components/schemas/ScoreClass" }
+                    count: { type: integer }
+  /intel/capacity:
+    get:
+      tags: [intel]
+      operationId: getIntelCapacity
+      summary: Aggregate capacity per category
+      description: Prequalified vendors only — count, combined turnover, engineers, ongoing-project load.
+      responses:
+        "200":
+          description: Capacity rows.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CapacityRow" }
+  /intel/certification:
+    get:
+      tags: [intel]
+      operationId: getIntelCertification
+      summary: Certification and insurance penetration
+      description: Share of prequalified subcontractors with ISO 9001, 14001/45001, liability insurance, audited statements, a full-time HSE specialist.
+      responses:
+        "200":
+          description: Penetration rows.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PenetrationRow" }
+  /intel/sources:
+    get:
+      tags: [intel]
+      operationId: getIntelSources
+      summary: Data-source split and stale-profile count
+      description: How the register knows what it knows — and how honest that is (spec §6.6).
+      responses:
+        "200":
+          description: Source mix and freshness.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SourceMix" }
+  /intel/expiring-documents:
+    get:
+      tags: [intel]
+      operationId: getExpiringDocuments
+      summary: Documents expiring within N days
+      parameters:
+        - name: within_days
+          in: query
+          schema: { type: integer, default: 60, minimum: 0 }
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: Expiring documents with their vendor.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExpiringDocumentPage" }
+  /intel/gaps:
+    get:
+      tags: [intel]
+      operationId: getMarketGaps
+      summary: Categories with no prequalified vendor
+      responses:
+        "200":
+          description: Gaps to source before the next tender.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MarketGap" }
+  /intel/attention:
+    get:
+      tags: [intel]
+      operationId: getAttentionList
+      summary: What needs a human today
+      description: Expiring documents, pending reviews, incomplete applications, category gaps — as i18n keys with counts.
+      responses:
+        "200":
+          description: Attention items.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AttentionItem" }
+
+  # ─────────────────────────────── integrations ──────────────────────────────
+  /integrations/adapters:
+    get:
+      tags: [integrations]
+      operationId: listAdapters
+      summary: Available adapters with status and last sync
+      description: |
+        `generic_rest` and `csv` are working; `erp_1c`, `erp_sap`, `erp_odoo` are mocked against the
+        same interface; `registry` returns "not configured" until a registry API exists (brief §2).
+      responses:
+        "200":
+          description: Adapters.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Adapter" }
+  /integrations/adapters/{adapter}/vendors/{vendor_id}/config:
+    parameters:
+      - { $ref: "#/components/parameters/AdapterKey" }
+      - { $ref: "#/components/parameters/VendorId" }
+    get:
+      tags: [integrations]
+      operationId: getAdapterConfig
+      summary: Per-vendor connector configuration
+      description: Secrets are returned masked; a masked value sent back unchanged leaves the stored secret alone.
+      responses:
+        "200":
+          description: Configuration.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdapterConfig" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [integrations]
+      operationId: putAdapterConfig
+      summary: Configure the connector for one vendor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdapterConfigInput" }
+      responses:
+        "200":
+          description: Stored.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdapterConfig" }
+  /integrations/adapters/{adapter}/sync:
+    parameters: [{ $ref: "#/components/parameters/AdapterKey" }]
+    post:
+      tags: [integrations]
+      operationId: runSync
+      summary: Run an adapter now
+      description: Without `vendor_id` the adapter runs for every vendor it is configured for.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                vendor_id: { type: string, format: uuid }
+                since: { type: string, format: date-time }
+      responses:
+        "202":
+          description: The sync log entry for this run.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SyncLog" }
+        "409":
+          description: The adapter is not configured.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+  /integrations/sync-log:
+    get:
+      tags: [integrations]
+      operationId: listSyncLog
+      summary: Adapter run history
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - name: adapter
+          in: query
+          schema: { type: string }
+        - name: vendor_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: result
+          in: query
+          schema: { $ref: "#/components/schemas/SyncResult" }
+      responses:
+        "200":
+          description: Runs, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SyncLogPage" }
+  /integrations/excel-import/preview:
+    post:
+      tags: [integrations]
+      operationId: previewExcelImport
+      summary: Parse an uploaded workbook and show the mapping
+      description: |
+        Step one of the two-step import: nothing is written. The response carries the mapped
+        fields, the document statuses read from the checklist sheet, the derived raw indicators
+        and the anomaly warnings (brief §1.11). The officer confirms, then calls
+        `createExcelImportRun` with the returned `preview_id`.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: .xlsx application form or scoring workbook.
+                kind:
+                  type: string
+                  enum: [application_form, scoring_workbook]
+                  default: application_form
+                vendor_id:
+                  type: string
+                  format: uuid
+                  description: Target vendor; omit to let the parser match on VÖEN.
+      responses:
+        "200":
+          description: The mapping preview.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportPreview" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+  /integrations/excel-import/runs:
+    post:
+      tags: [integrations]
+      operationId: createExcelImportRun
+      summary: Write a confirmed preview into the register
+      description: Writes field observations with source `excel` and returns the resulting sync log entry.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [preview_id]
+              properties:
+                preview_id: { type: string, format: uuid }
+                vendor_id:
+                  type: string
+                  format: uuid
+                  description: Overrides the vendor the preview matched.
+                accept_field_codes:
+                  type: array
+                  items: { type: string }
+                  description: Import only these codes; omit to import everything in the preview.
+      responses:
+        "201":
+          description: Imported.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SyncLog" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /integrations/api-keys:
+    get:
+      tags: [integrations]
+      operationId: listApiKeys
+      summary: API keys
+      description: The key material itself is never returned again after creation.
+      responses:
+        "200":
+          description: Keys.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ApiKey" }
+    post:
+      tags: [integrations]
+      operationId: createApiKey
+      summary: Create an API key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, scopes]
+              properties:
+                name: { type: string }
+                scopes:
+                  type: array
+                  items: { $ref: "#/components/schemas/Scope" }
+      responses:
+        "201":
+          description: Created — `key` is shown this once only.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiKeyCreated" }
+  /integrations/api-keys/{api_key_id}:
+    parameters:
+      - name: api_key_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [integrations]
+      operationId: patchApiKey
+      summary: Rename a key or change its scopes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                scopes:
+                  type: array
+                  items: { $ref: "#/components/schemas/Scope" }
+                is_active: { type: boolean }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiKey" }
+    delete:
+      tags: [integrations]
+      operationId: revokeApiKey
+      summary: Revoke a key
+      responses:
+        "204": { description: Revoked. }
+  /integrations/webhooks:
+    get:
+      tags: [integrations]
+      operationId: listWebhooks
+      summary: Webhook subscriptions
+      responses:
+        "200":
+          description: Subscriptions.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Webhook" }
+    post:
+      tags: [integrations]
+      operationId: createWebhook
+      summary: Subscribe to domain events
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WebhookInput" }
+      responses:
+        "201":
+          description: Created — `secret` is shown this once only.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WebhookCreated" }
+  /integrations/webhooks/{webhook_id}:
+    parameters:
+      - name: webhook_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [integrations]
+      operationId: patchWebhook
+      summary: Update a subscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WebhookInput" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Webhook" }
+    delete:
+      tags: [integrations]
+      operationId: deleteWebhook
+      summary: Remove a subscription
+      responses:
+        "204": { description: Deleted. }
+  /integrations/webhooks/{webhook_id}/test:
+    parameters:
+      - name: webhook_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [integrations]
+      operationId: testWebhook
+      summary: Send a signed test delivery
+      responses:
+        "200":
+          description: What the endpoint answered.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WebhookDelivery" }
+
+  # ────────────────────────────────── admin ──────────────────────────────────
+  /admin/categories:
+    get:
+      tags: [admin]
+      operationId: listCategories
+      summary: The category taxonomy
+      parameters:
+        - name: kind
+          in: query
+          schema: { $ref: "#/components/schemas/CategoryKind" }
+        - name: include_inactive
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: Categories with vendor counts.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Category" }
+    post:
+      tags: [admin]
+      operationId: createCategory
+      summary: Add a category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CategoryInput" }
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Category" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/categories/{category_id}:
+    parameters:
+      - name: category_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [admin]
+      operationId: patchCategory
+      summary: Rename or re-parent a category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CategoryInput" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Category" }
+    delete:
+      tags: [admin]
+      operationId: deleteCategory
+      summary: Deactivate a category
+      description: A category in use by a vendor or a package is deactivated, not deleted.
+      responses:
+        "204": { description: Deactivated or deleted. }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/users:
+    get:
+      tags: [admin]
+      operationId: listUsers
+      summary: Accounts
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - name: role
+          in: query
+          schema: { type: array, items: { $ref: "#/components/schemas/UserRole" } }
+        - name: q
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Users.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserPage" }
+    post:
+      tags: [admin]
+      operationId: createUser
+      summary: Create an account
+      description: A `vendor` role requires `vendor_id`; staff roles must not have one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UserInput" }
+      responses:
+        "201":
+          description: Created; for staff the TOTP enrolment URI is returned once.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserCreated" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/users/{user_id}:
+    parameters: [{ $ref: "#/components/parameters/UserId" }]
+    patch:
+      tags: [admin]
+      operationId: patchUser
+      summary: Update an account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UserInput" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+    delete:
+      tags: [admin]
+      operationId: deactivateUser
+      summary: Deactivate an account
+      description: Accounts are deactivated, never deleted — the audit log references them.
+      responses:
+        "204": { description: Deactivated. }
+  /admin/users/{user_id}/role:
+    parameters: [{ $ref: "#/components/parameters/UserId" }]
+    put:
+      tags: [admin]
+      operationId: putUserRole
+      summary: Change a role
+      description: The last active `admin` cannot be demoted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { $ref: "#/components/schemas/UserRole" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /admin/settings:
+    get:
+      tags: [admin]
+      operationId: getSettings
+      summary: All organisation settings
+      description: |
+        Matching thresholds, prequalification validity, reminder days, organisation identity and
+        default language. Every threshold in spec §11 is a setting, not code.
+      responses:
+        "200":
+          description: Settings.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Settings" }
+    put:
+      tags: [admin]
+      operationId: putSettings
+      summary: Update settings
+      description: A partial map; unknown keys are rejected with `422`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SettingsPatch" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Settings" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+  /admin/audit:
+    get:
+      tags: [admin]
+      operationId: listAuditEvents
+      summary: The audit log
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - name: actor_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: entity_type
+          in: query
+          schema: { type: string }
+        - name: entity_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: action
+          in: query
+          schema: { type: string }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Audit events, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuditEventPage" }
+  /admin/audit/export.xlsx:
+    get:
+      tags: [admin]
+      operationId: exportAuditLog
+      summary: Export the audit log for committee minutes
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - $ref: "#/components/parameters/LocaleParam"
+      responses:
+        "200": { $ref: "#/components/responses/XlsxFile" }
+
+  # ────────────────────────────────── events ─────────────────────────────────
+  /events:
+    get:
+      tags: [events]
+      operationId: listEvents
+      summary: The domain event log
+      description: |
+        The same stream webhooks deliver. A future product can poll this with an API key instead
+        of subscribing (brief §2, "API-first").
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - name: type
+          in: query
+          schema: { type: array, items: { $ref: "#/components/schemas/EventType" } }
+        - name: entity_type
+          in: query
+          schema: { type: string }
+        - name: entity_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: since
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Events, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EventPage" }
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: vendoriq_session
+      description: httpOnly session cookie issued by the auth endpoints. Mutating requests also require the `X-CSRF-Token` header.
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Machine credential with scopes; see `/integrations/api-keys`.
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PageSizeParam:
+      name: page_size
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 25 }
+    LocaleParam:
+      name: locale
+      in: query
+      description: Language of the generated file's headings.
+      schema: { type: string, enum: [az, en], default: az }
+    VendorId:
+      name: vendor_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ApplicationId:
+      name: application_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    CycleId:
+      name: cycle_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ProjectId:
+      name: project_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    UserId:
+      name: user_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ModelVersion:
+      name: version
+      in: path
+      required: true
+      description: Scoring model version, e.g. `sub-4`.
+      schema: { type: string }
+    AdapterKey:
+      name: adapter
+      in: path
+      required: true
+      schema: { $ref: "#/components/schemas/AdapterKey" }
+
+  responses:
+    Unauthenticated:
+      description: No valid session or API key.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    Forbidden:
+      description: The role or scope does not allow this operation.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    NotFound:
+      description: No such resource, or it is outside the caller's scope.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    Conflict:
+      description: The request contradicts the current state.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    ValidationError:
+      description: The payload failed validation.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    RateLimited:
+      description: Too many attempts.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    UnsupportedMediaType:
+      description: Only PDF documents and .xlsx workbooks are accepted.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    XlsxFile:
+      description: An Excel workbook.
+      content:
+        application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+          schema: { type: string, format: binary }
+    PdfFile:
+      description: A PDF document.
+      content:
+        application/pdf:
+          schema: { type: string, format: binary }
+
+  schemas:
+    # ── errors & pagination ──────────────────────────────────────────────────
+    ErrorEnvelope:
+      type: object
+      description: The one error shape every endpoint returns.
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, details]
+          properties:
+            code:
+              type: string
+              description: Stable machine-readable code.
+              enum:
+                - bad_request
+                - unauthenticated
+                - forbidden
+                - not_found
+                - conflict
+                - payload_too_large
+                - unsupported_media_type
+                - validation_error
+                - rate_limited
+                - internal_error
+            message:
+              type: string
+              description: English text for logs and developers, never shown verbatim to a vendor.
+            details:
+              type: object
+              additionalProperties: true
+              description: Structured context — failed checks, offending field codes, retry-after.
+      examples:
+        - error:
+            code: conflict
+            message: Pre-submission check failed.
+            details:
+              checks:
+                mandatory_fields: false
+                mandatory_documents: true
+                knock_out_answers: true
+    PageMeta:
+      type: object
+      required: [total, page, page_size]
+      properties:
+        total: { type: integer, description: Rows matching the filter, not rows on this page. }
+        page: { type: integer }
+        page_size: { type: integer }
+
+    # ── enums ────────────────────────────────────────────────────────────────
+    VendorType:
+      type: string
+      enum: [sub, sup, both]
+      description: Subcontractor, material supplier, or both.
+    VendorStatus:
+      type: string
+      enum:
+        [
+          registered,
+          invited,
+          in_progress,
+          submitted,
+          under_review,
+          information_requested,
+          prequalified,
+          rejected,
+          suspended,
+        ]
+    ApplicationStatus:
+      type: string
+      enum:
+        [
+          invited,
+          in_progress,
+          submitted,
+          under_review,
+          information_requested,
+          prequalified,
+          rejected,
+          withdrawn,
+        ]
+    ScoreClass:
+      type: string
+      enum: [A, B, C, D, F, KO]
+      description: "A ≥ 90, B ≥ 80, C ≥ 70, D ≥ 60, F < 60. `KO` overrides the total."
+    CategoryKind:
+      type: string
+      enum: [work, material]
+    ObservationSource:
+      type: string
+      enum: [registry, api, document, portal, excel, manual]
+      description: "Trust rank 1–5: registry 1, api 2, document 3, portal/excel 4, manual 5."
+    DocumentStatus:
+      type: string
+      enum: [uploaded, in_preparation, not_applicable, missing]
+    CycleKind:
+      type: string
+      enum: [tender, periodic]
+    CycleStatus:
+      type: string
+      enum: [draft, open, closed, archived]
+    DecisionKind:
+      type: string
+      enum: [approve, reject, request_info]
+    ProjectStage:
+      type: string
+      enum: [pipeline, go_nogo, tender, execution]
+    MatchState:
+      type: string
+      enum: [go, cond, nogo]
+    UserRole:
+      type: string
+      enum: [vendor, officer, commission, manager, admin]
+    SyncResult:
+      type: string
+      enum: [success, partial, failed]
+    AdapterKey:
+      type: string
+      enum: [generic_rest, csv, erp_1c, erp_sap, erp_odoo, registry, excel]
+    CriterionKind:
+      type: string
+      enum: [rubric, bands, thresh, ongoing, leadtime]
+    Scope:
+      type: string
+      description: API key scope, `<module>:<read|write>`.
+      enum:
+        - vendors:read
+        - vendors:write
+        - applications:read
+        - applications:write
+        - projects:read
+        - projects:write
+        - intel:read
+        - integrations:read
+        - integrations:write
+        - admin:read
+        - admin:write
+    EventType:
+      type: string
+      enum:
+        - vendor.registered
+        - vendor.invited
+        - vendor.prequalified
+        - vendor.rejected
+        - vendor.suspended
+        - application.submitted
+        - application.decided
+        - document.uploaded
+        - document.expiring
+        - project.matched
+        - model.published
+        - sync.completed
+
+    # ── health & auth ────────────────────────────────────────────────────────
+    Health:
+      type: object
+      required: [status, version, app_env, auth_mode, storage_backend]
+      properties:
+        status: { type: string, enum: [ok] }
+        version: { type: string }
+        app_env: { type: string, enum: [development, staging, production] }
+        auth_mode:
+          type: string
+          enum: [test, live]
+          description: "`test` seeds the test accounts and reveals codes; the app refuses to start with `test` in production."
+        storage_backend: { type: string, enum: [local, s3] }
+    VendorRegistration:
+      type: object
+      required: [legal_name, voen, type, contact_name, email]
+      properties:
+        legal_name: { type: string, minLength: 2 }
+        voen: { type: string, pattern: "^[0-9]{10}$" }
+        type: { $ref: "#/components/schemas/VendorType" }
+        contact_name: { type: string }
+        position: { type: string }
+        phone: { type: string }
+        email: { type: string, format: email }
+        locale: { type: string, enum: [az, en], default: az }
+    OtpRequest:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email }
+    OtpChallenge:
+      type: object
+      required: [email, expires_at]
+      properties:
+        email: { type: string, format: email }
+        expires_at: { type: string, format: date-time }
+        debug_code:
+          type: [string, "null"]
+          description: Present only when `AUTH_MODE=test`. Always null in live mode.
+    OtpVerification:
+      type: object
+      required: [email, code]
+      properties:
+        email: { type: string, format: email }
+        code: { type: string, pattern: "^[0-9]{6}$" }
+    StaffLogin:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+    TotpChallenge:
+      type: object
+      required: [challenge_id, totp_required]
+      properties:
+        challenge_id: { type: string, format: uuid }
+        totp_required: { type: boolean }
+        debug_code:
+          type: [string, "null"]
+          description: Present only when `AUTH_MODE=test`.
+    TotpVerification:
+      type: object
+      required: [challenge_id, code]
+      properties:
+        challenge_id: { type: string, format: uuid }
+        code: { type: string, pattern: "^[0-9]{6}$" }
+    Session:
+      type: object
+      required: [user, expires_at]
+      properties:
+        user: { $ref: "#/components/schemas/User" }
+        expires_at: { type: string, format: date-time }
+        csrf_token: { type: string }
+    Me:
+      allOf:
+        - $ref: "#/components/schemas/User"
+        - type: object
+          properties:
+            permissions:
+              type: array
+              description: Operation ids this identity may call — the frontend hides, the server enforces.
+              items: { type: string }
+            auth_mode: { type: string, enum: [test, live] }
+
+    # ── vendors ──────────────────────────────────────────────────────────────
+    Vendor:
+      type: object
+      required: [id, legal_name, type, status, is_demo, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        legal_name: { type: string }
+        voen:
+          type: [string, "null"]
+          pattern: "^[0-9]{10}$"
+          description: Unique. A multi-value cell such as `1400915571 / 7200482051` keeps the first value and warns.
+        type: { $ref: "#/components/schemas/VendorType" }
+        legal_form: { type: [string, "null"] }
+        registration_year: { type: [integer, "null"] }
+        address: { type: [string, "null"] }
+        region: { type: [string, "null"] }
+        website: { type: [string, "null"] }
+        status: { $ref: "#/components/schemas/VendorStatus" }
+        external_ref: { type: [string, "null"], description: Id of this vendor in a foreign system. }
+        is_demo: { type: boolean }
+        latest_score: { type: [number, "null"] }
+        latest_class: { $ref: "#/components/schemas/ScoreClass" }
+        prequalified_until: { type: [string, "null"], format: date }
+        primary_source: { $ref: "#/components/schemas/ObservationSource" }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    VendorCreate:
+      type: object
+      required: [legal_name, type]
+      properties:
+        legal_name: { type: string }
+        voen: { type: [string, "null"], pattern: "^[0-9]{10}$" }
+        type: { $ref: "#/components/schemas/VendorType" }
+        legal_form: { type: string }
+        registration_year: { type: integer }
+        address: { type: string }
+        region: { type: string }
+        website: { type: string }
+        external_ref: { type: string }
+        is_demo: { type: boolean, default: false }
+    VendorPatch:
+      type: object
+      description: Every present field is written as a `manual` observation with the given reason.
+      properties:
+        legal_name: { type: string }
+        voen: { type: string, pattern: "^[0-9]{10}$" }
+        type: { $ref: "#/components/schemas/VendorType" }
+        legal_form: { type: string }
+        registration_year: { type: integer }
+        address: { type: string }
+        region: { type: string }
+        website: { type: string }
+        external_ref: { type: string }
+        status: { $ref: "#/components/schemas/VendorStatus" }
+        reason: { type: string, description: Mandatory for staff edits (spec §6.5). }
+    VendorDetail:
+      allOf:
+        - $ref: "#/components/schemas/Vendor"
+        - type: object
+          properties:
+            contacts:
+              type: array
+              items: { $ref: "#/components/schemas/Contact" }
+            categories:
+              type: array
+              items: { $ref: "#/components/schemas/VendorCategory" }
+            current_fields:
+              type: object
+              additionalProperties: true
+              description: Current value per field code, resolved from observations.
+            raw_indicators:
+              type: object
+              additionalProperties: { type: [number, "null"] }
+              description: Derived indicators the scoring engine consumes.
+            documents:
+              type: array
+              items: { $ref: "#/components/schemas/Document" }
+            evaluations:
+              type: array
+              description: Score history across cycles.
+              items: { $ref: "#/components/schemas/EvaluationSummary" }
+            stale_fields:
+              type: array
+              items: { type: string }
+              description: Field codes past their refresh window (spec §6.6).
+    VendorPage:
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/Vendor" }
+    Contact:
+      type: object
+      required: [id, vendor_id, name, is_primary]
+      properties:
+        id: { type: string, format: uuid }
+        vendor_id: { type: string, format: uuid }
+        name: { type: string }
+        position: { type: [string, "null"] }
+        phone: { type: [string, "null"] }
+        email: { type: [string, "null"], format: email }
+        is_primary: { type: boolean }
+        has_portal_account: { type: boolean }
+    ContactInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        position: { type: string }
+        phone: { type: string }
+        email: { type: string, format: email }
+        is_primary: { type: boolean, default: false }
+    Category:
+      type: object
+      required: [id, code, name_az, name_en, kind]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name_az: { type: string }
+        name_en: { type: string }
+        kind: { $ref: "#/components/schemas/CategoryKind" }
+        parent_id: { type: [string, "null"], format: uuid }
+        is_active: { type: boolean }
+        vendor_count: { type: integer, description: Vendors with this category confirmed. }
+        prequalified_count: { type: integer }
+    CategoryInput:
+      type: object
+      required: [code, name_az, name_en, kind]
+      properties:
+        code: { type: string }
+        name_az: { type: string }
+        name_en: { type: string }
+        kind: { $ref: "#/components/schemas/CategoryKind" }
+        parent_id: { type: [string, "null"], format: uuid }
+        is_active: { type: boolean, default: true }
+    VendorCategory:
+      type: object
+      required: [category, confirmed]
+      properties:
+        category: { $ref: "#/components/schemas/Category" }
+        confirmed: { type: boolean, description: Only confirmed categories count in matching. }
+        confirmed_at: { type: [string, "null"], format: date-time }
+    FieldObservation:
+      type: object
+      required: [id, vendor_id, field_code, value, source, observed_at, trust_rank]
+      properties:
+        id: { type: string, format: uuid }
+        vendor_id: { type: string, format: uuid }
+        field_code: { type: string, examples: ["B.1", "C.t1"] }
+        value:
+          description: >-
+            Scalars are wrapped as an object with a `value` member; tables are JSON arrays.
+          type: [object, array, string, number, boolean, "null"]
+        unit: { type: [string, "null"] }
+        source: { $ref: "#/components/schemas/ObservationSource" }
+        source_ref: { type: [string, "null"], description: File key, API call id or import run id. }
+        observed_at: { type: string, format: date-time }
+        entered_by: { type: [string, "null"], format: uuid }
+        trust_rank: { type: integer, minimum: 1, maximum: 9 }
+        is_current: { type: boolean, description: True when this is the winning observation for its field code. }
+    ObservationInput:
+      type: object
+      required: [field_code, value, reason]
+      properties:
+        field_code: { type: string }
+        value: { type: [object, array, string, number, boolean, "null"] }
+        unit: { type: string }
+        observed_at: { type: string, format: date-time }
+        reason: { type: string, minLength: 3 }
+    FieldObservationPage:
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/FieldObservation" }
+    Document:
+      type: object
+      required: [code, status, mandatory]
+      properties:
+        id: { type: [string, "null"], format: uuid }
+        vendor_id: { type: string, format: uuid }
+        code: { type: string, examples: ["A-05"] }
+        name_az: { type: string }
+        name_en: { type: string }
+        mandatory: { type: boolean }
+        status: { $ref: "#/components/schemas/DocumentStatus" }
+        filename: { type: [string, "null"] }
+        file_key: { type: [string, "null"] }
+        issue_date: { type: [string, "null"], format: date }
+        expiry_date:
+          type: [string, "null"]
+          format: date
+          description: Null means no expiry ("Müddətsiz"). For `A-05` it is always issue date + 3 months.
+        days_to_expiry: { type: [integer, "null"] }
+        verified_by: { type: [string, "null"], format: uuid }
+        verified_at: { type: [string, "null"], format: date-time }
+    DocumentPatch:
+      type: object
+      properties:
+        status: { $ref: "#/components/schemas/DocumentStatus" }
+        issue_date: { type: [string, "null"], format: date }
+        expiry_date: { type: [string, "null"], format: date }
+        verified: { type: boolean, description: Officer only; stamps `verified_by`/`verified_at`. }
+    UploadInit:
+      type: object
+      required: [code, filename, content_type, size]
+      properties:
+        code: { type: string, examples: ["A-04"] }
+        filename: { type: string }
+        content_type: { type: string, enum: [application/pdf] }
+        size: { type: integer, minimum: 1 }
+    UploadTicket:
+      type: object
+      required: [upload_id, url, method, expires_at]
+      properties:
+        upload_id: { type: string, format: uuid }
+        url: { type: string, format: uri }
+        method: { type: string, enum: [PUT, POST] }
+        headers:
+          type: object
+          additionalProperties: { type: string }
+        expires_at: { type: string, format: date-time }
+    UploadCompletion:
+      type: object
+      required: [upload_id, code]
+      properties:
+        upload_id: { type: string, format: uuid }
+        code: { type: string }
+        issue_date: { type: [string, "null"], format: date }
+        expiry_date: { type: [string, "null"], format: date }
+    DownloadTicket:
+      type: object
+      required: [url, expires_at]
+      properties:
+        url: { type: string, format: uri }
+        expires_at: { type: string, format: date-time }
+        filename: { type: string }
+
+    # ── applications & scoring ───────────────────────────────────────────────
+    Application:
+      type: object
+      required: [id, vendor_id, cycle_id, status]
+      properties:
+        id: { type: string, format: uuid }
+        vendor_id: { type: string, format: uuid }
+        vendor_name: { type: string }
+        cycle_id: { type: string, format: uuid }
+        cycle_name: { type: string }
+        status: { $ref: "#/components/schemas/ApplicationStatus" }
+        submitted_at: { type: [string, "null"], format: date-time }
+        total: { type: [number, "null"] }
+        cls: { $ref: "#/components/schemas/ScoreClass" }
+        decision: { $ref: "#/components/schemas/DecisionKind" }
+        decided_at: { type: [string, "null"], format: date-time }
+        evaluator_name: { type: [string, "null"] }
+        is_demo: { type: boolean }
+    ApplicationPage:
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/Application" }
+    ApplicationDetail:
+      allOf:
+        - $ref: "#/components/schemas/Application"
+        - type: object
+          properties:
+            scoring_model_version: { type: string }
+            answers:
+              type: object
+              additionalProperties: true
+              description: Answers by field code; tables as arrays.
+            raw_snapshot:
+              type: [object, "null"]
+              additionalProperties: { type: [number, "null"] }
+              description: Frozen at submission; null before it.
+            rubric_scores:
+              type: [object, "null"]
+              additionalProperties: { type: integer, minimum: 0, maximum: 3 }
+            computed: { $ref: "#/components/schemas/ScoreResult" }
+            declaration: { $ref: "#/components/schemas/Declaration" }
+            justification: { type: [string, "null"] }
+            checks: { $ref: "#/components/schemas/SubmissionChecks" }
+            score_released:
+              type: boolean
+              description: Vendors see the breakdown only after the commission decision.
+    AnswerPatch:
+      type: object
+      required: [answers]
+      properties:
+        answers:
+          type: object
+          additionalProperties: true
+          description: Partial map keyed by field code (`A.1` … `G.7`, tables `C.t1`, `C.t2`, `G.t1`).
+    AnswerState:
+      type: object
+      required: [completion_pct, checks]
+      properties:
+        completion_pct: { type: number, minimum: 0, maximum: 100 }
+        checks: { $ref: "#/components/schemas/SubmissionChecks" }
+        computed_fields:
+          type: object
+          additionalProperties: { type: [number, "null"] }
+          description: Auto-calculated cells (B.4 average turnover, B.8 current ratio).
+        warnings:
+          type: array
+          items: { $ref: "#/components/schemas/ImportWarning" }
+    SubmissionChecks:
+      type: object
+      description: The pre-submission checklist shown on the declaration screen.
+      required: [mandatory_fields, mandatory_documents, knock_out_answers]
+      properties:
+        mandatory_fields: { type: boolean }
+        mandatory_documents: { type: boolean }
+        knock_out_answers: { type: boolean }
+        missing_field_codes:
+          type: array
+          items: { type: string }
+        missing_document_codes:
+          type: array
+          items: { type: string }
+    Declaration:
+      type: object
+      properties:
+        signatory_name: { type: [string, "null"] }
+        signatory_position: { type: [string, "null"] }
+        agreed: { type: boolean }
+        signed_at: { type: [string, "null"], format: date-time }
+        stamp_file_key: { type: [string, "null"] }
+    DeclarationInput:
+      type: object
+      required: [signatory_name, signatory_position, agreed]
+      properties:
+        signatory_name: { type: string }
+        signatory_position: { type: string }
+        agreed: { type: boolean, const: true }
+    ScoreResult:
+      type: object
+      description: Engine output — the same shape the reference JS returns.
+      required: [per, groups, total, ko, cls]
+      properties:
+        per:
+          type: object
+          additionalProperties: { type: number }
+          description: Points per criterion code, rounded to one decimal.
+        groups:
+          type: object
+          additionalProperties: { type: number }
+          description: Points per group letter, rounded to one decimal after each addition.
+        total: { type: number, description: Sum of the group totals, rounded to one decimal. }
+        ko: { type: boolean, description: False when any knock-out criterion has a raw value of 0. }
+        cls: { $ref: "#/components/schemas/ScoreClass" }
+        pass_mark: { type: number }
+        model_version: { type: string }
+    Evaluation:
+      type: object
+      required: [application_id, model_version, rows, computed]
+      properties:
+        application_id: { type: string, format: uuid }
+        model_version: { type: string }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/EvaluationRow" }
+        computed: { $ref: "#/components/schemas/ScoreResult" }
+        can_approve:
+          type: boolean
+          description: False below the pass mark or on a knock-out failure.
+        evaluator_name: { type: [string, "null"] }
+    EvaluationRow:
+      type: object
+      required: [code, group, kind, max]
+      properties:
+        code: { type: string }
+        group: { type: string }
+        name_az: { type: string }
+        name_en: { type: string }
+        kind: { $ref: "#/components/schemas/CriterionKind" }
+        max: { type: number }
+        ko: { type: boolean }
+        unit: { type: [string, "null"] }
+        evidence_doc: { type: [string, "null"], description: Checklist code the officer verifies against. }
+        raw_value: { type: [number, "null"] }
+        raw_source: { $ref: "#/components/schemas/ObservationSource" }
+        rubric_score: { type: [integer, "null"], minimum: 0, maximum: 3 }
+        points: { type: number }
+    EvaluationSummary:
+      type: object
+      description: One line of a vendor's evaluation history.
+      properties:
+        application_id: { type: string, format: uuid }
+        cycle_name: { type: string }
+        model_version: { type: string }
+        total: { type: [number, "null"] }
+        cls: { $ref: "#/components/schemas/ScoreClass" }
+        decision: { $ref: "#/components/schemas/DecisionKind" }
+        decided_at: { type: [string, "null"], format: date-time }
+    RubricInput:
+      type: object
+      required: [rubric_scores]
+      properties:
+        rubric_scores:
+          type: object
+          additionalProperties: { type: integer, minimum: 0, maximum: 3 }
+        evidence:
+          type: object
+          additionalProperties: { type: string }
+          description: Optional per-criterion note about the document that was checked.
+    ComputeRequest:
+      type: object
+      description: Score with these rubric cells without persisting anything.
+      properties:
+        rubric_scores:
+          type: object
+          additionalProperties: { type: integer, minimum: 0, maximum: 3 }
+        raw_overrides:
+          type: object
+          additionalProperties: { type: [number, "null"] }
+          description: What-if values for numeric criteria; defaults to the application's snapshot.
+        model_version:
+          type: string
+          description: Defaults to the cycle's version.
+    SecondEvaluation:
+      type: object
+      required: [computed, divergences]
+      properties:
+        computed: { $ref: "#/components/schemas/ScoreResult" }
+        divergences:
+          type: array
+          description: Criteria where the two evaluators differ by more than one point.
+          items:
+            type: object
+            properties:
+              code: { type: string }
+              first: { type: integer }
+              second: { type: integer }
+    DecisionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision: { $ref: "#/components/schemas/DecisionKind" }
+        justification:
+          type: string
+          description: Mandatory for `reject` and `request_info`.
+        valid_months:
+          type: integer
+          description: Overrides the model's 12-month validity for this approval.
+
+    # ── cycles ───────────────────────────────────────────────────────────────
+    Cycle:
+      type: object
+      required: [id, name, kind, scoring_model_version, status]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, examples: ["TQS2026006"] }
+        kind: { $ref: "#/components/schemas/CycleKind" }
+        scoring_model_version: { type: string }
+        opens_at: { type: [string, "null"], format: date-time }
+        closes_at: { type: [string, "null"], format: date-time }
+        project_id: { type: [string, "null"], format: uuid }
+        status: { $ref: "#/components/schemas/CycleStatus" }
+        application_count: { type: integer }
+        is_demo: { type: boolean }
+    CycleInput:
+      type: object
+      required: [name, kind, scoring_model_version]
+      properties:
+        name: { type: string }
+        kind: { $ref: "#/components/schemas/CycleKind" }
+        scoring_model_version: { type: string }
+        opens_at: { type: [string, "null"], format: date-time }
+        closes_at: { type: [string, "null"], format: date-time }
+        project_id: { type: [string, "null"], format: uuid }
+        status: { $ref: "#/components/schemas/CycleStatus" }
+    CycleDetail:
+      allOf:
+        - $ref: "#/components/schemas/Cycle"
+        - type: object
+          properties:
+            counts_by_status:
+              type: object
+              additionalProperties: { type: integer }
+            committee:
+              type: array
+              items: { $ref: "#/components/schemas/User" }
+    CyclePage:
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/Cycle" }
+
+    # ── scoring models ───────────────────────────────────────────────────────
+    ScoringModelSummary:
+      type: object
+      required: [version, vendor_type, name_az, name_en, is_locked]
+      properties:
+        version: { type: string, examples: ["sub-4"] }
+        vendor_type: { $ref: "#/components/schemas/VendorType" }
+        name_az: { type: string }
+        name_en: { type: string }
+        status: { type: string, enum: [active, proposed, retired] }
+        pass_mark: { type: number }
+        validity_months: { type: integer }
+        effective_from: { type: [string, "null"], format: date }
+        is_locked: { type: boolean, description: True once an application has been scored with it. }
+        application_count: { type: integer }
+    ScoringModel:
+      allOf:
+        - $ref: "#/components/schemas/ScoringModelSummary"
+        - type: object
+          required: [criteria, classes, groups]
+          properties:
+            currency: { type: string, const: AZN }
+            total_max: { type: number }
+            groups:
+              type: array
+              items: { $ref: "#/components/schemas/GroupDef" }
+            criteria:
+              type: array
+              items: { $ref: "#/components/schemas/Criterion" }
+            classes:
+              type: array
+              items: { $ref: "#/components/schemas/ClassBand" }
+    ScoringModelPatch:
+      type: object
+      properties:
+        name_az: { type: string }
+        name_en: { type: string }
+        pass_mark: { type: number }
+        validity_months: { type: integer }
+        criteria:
+          type: array
+          items: { $ref: "#/components/schemas/Criterion" }
+        classes:
+          type: array
+          items: { $ref: "#/components/schemas/ClassBand" }
+    GroupDef:
+      type: object
+      required: [group, name_az, name_en, max]
+      properties:
+        group: { type: string, examples: ["C"] }
+        name_az: { type: string }
+        name_en: { type: string }
+        max: { type: number }
+    Criterion:
+      type: object
+      required: [code, group, max, kind, ko]
+      properties:
+        code: { type: string, examples: ["B.1"] }
+        group: { type: string }
+        max: { type: number }
+        kind: { $ref: "#/components/schemas/CriterionKind" }
+        spec:
+          type: [object, "null"]
+          description: Threshold table or band table; null for `rubric`, `ongoing` and `leadtime`.
+          properties:
+            cuts:
+              type: array
+              items: { type: array, items: { type: number } }
+            bands:
+              type: array
+              items: { type: array, items: { type: number } }
+            zero: { type: number }
+            top: { type: number }
+        ko: { type: boolean }
+        name_az: { type: string }
+        name_en: { type: string }
+        unit: { type: [string, "null"] }
+        evidence_doc: { type: [string, "null"] }
+    ClassBand:
+      type: object
+      required: [cls, min]
+      properties:
+        cls: { $ref: "#/components/schemas/ScoreClass" }
+        min: { type: number }
+        label_az: { type: string }
+        label_en: { type: string }
+    RescoreReport:
+      type: object
+      required: [cycle_id, from_version, to_version, rows]
+      properties:
+        cycle_id: { type: string, format: uuid }
+        from_version: { type: string }
+        to_version: { type: string }
+        rows:
+          type: array
+          items:
+            type: object
+            properties:
+              vendor_id: { type: string, format: uuid }
+              vendor_name: { type: string }
+              old_total: { type: number }
+              new_total: { type: number }
+              old_class: { $ref: "#/components/schemas/ScoreClass" }
+              new_class: { $ref: "#/components/schemas/ScoreClass" }
+              changed: { type: boolean }
+        summary:
+          type: object
+          properties:
+            changed_count: { type: integer }
+            class_changes: { type: integer }
+
+    # ── projects & matching ──────────────────────────────────────────────────
+    Project:
+      type: object
+      required: [id, code, name, stage, is_demo]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string, examples: ["TQS-238"] }
+        name: { type: string }
+        client: { type: [string, "null"] }
+        stage: { $ref: "#/components/schemas/ProjectStage" }
+        estimated_value: { type: [number, "null"] }
+        deadline: { type: [string, "null"], format: date }
+        external_ref: { type: [string, "null"] }
+        is_demo: { type: boolean }
+        package_count: { type: integer }
+        coverage_pct: { type: [integer, "null"] }
+        match_state: { $ref: "#/components/schemas/MatchState" }
+        last_matched_at: { type: [string, "null"], format: date-time }
+    ProjectInput:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        client: { type: string }
+        stage: { $ref: "#/components/schemas/ProjectStage" }
+        estimated_value: { type: number }
+        deadline: { type: [string, "null"], format: date }
+        external_ref: { type: string }
+        is_demo: { type: boolean, default: false }
+    ProjectDetail:
+      allOf:
+        - $ref: "#/components/schemas/Project"
+        - type: object
+          properties:
+            packages:
+              type: array
+              items: { $ref: "#/components/schemas/WorkPackage" }
+            latest_match: { $ref: "#/components/schemas/MatchRun" }
+    ProjectPage:
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/Project" }
+    WorkPackage:
+      type: object
+      required: [id, project_id, category, estimated_value, min_class]
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        name: { type: [string, "null"] }
+        category: { $ref: "#/components/schemas/Category" }
+        estimated_value: { type: number }
+        min_class: { $ref: "#/components/schemas/ScoreClass" }
+        required_certs:
+          type: array
+          items: { type: string, examples: ["iso9001", "iso45001"] }
+        notes: { type: [string, "null"] }
+        is_demo: { type: boolean }
+    WorkPackageInput:
+      type: object
+      required: [category_code, estimated_value]
+      properties:
+        name: { type: string }
+        category_code: { type: string }
+        estimated_value: { type: number, minimum: 0 }
+        min_class: { $ref: "#/components/schemas/ScoreClass" }
+        required_certs:
+          type: array
+          items: { type: string }
+        notes: { type: string }
+    MatchParams:
+      type: object
+      description: Thresholds for one run; omitted values fall back to the organisation settings.
+      properties:
+        strong_min: { type: integer, default: 2, description: Class A/B vendors with capacity fit needed for GO. }
+        capacity_ratio: { type: number, default: 0.4, description: Largest project ÷ package value. }
+        supplier_turnover_divisor: { type: number, default: 4, description: Suppliers use turnover ÷ this as capacity. }
+    MatchRun:
+      type: object
+      required: [id, project_id, ran_at, params, state, coverage_pct, packages]
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        ran_at: { type: string, format: date-time }
+        params: { $ref: "#/components/schemas/MatchParams" }
+        state: { $ref: "#/components/schemas/MatchState" }
+        coverage_pct: { type: integer, minimum: 0, maximum: 100 }
+        recommendation_key:
+          type: string
+          enum: [m_rec_go, m_rec_cond, m_rec_nogo]
+          description: An i18n key — the server never returns a rendered sentence.
+        packages:
+          type: array
+          items: { $ref: "#/components/schemas/PackageMatch" }
+    PackageMatch:
+      type: object
+      required: [package_id, state, candidates]
+      properties:
+        package_id: { type: string, format: uuid }
+        state: { $ref: "#/components/schemas/MatchState" }
+        gap:
+          type: [string, "null"]
+          enum: [no_vendor_in_category, only_class_c, certificate_missing, capacity_too_small, null]
+        candidates:
+          type: array
+          items: { $ref: "#/components/schemas/MatchCandidate" }
+        eligible_count: { type: integer }
+        strong_count: { type: integer }
+    MatchCandidate:
+      type: object
+      required: [vendor_id, legal_name, total, cls, eligible]
+      properties:
+        vendor_id: { type: string, format: uuid }
+        legal_name: { type: string }
+        total: { type: number }
+        cls: { $ref: "#/components/schemas/ScoreClass" }
+        capacity_value: { type: number, description: Largest completed project, or turnover ÷ divisor for suppliers. }
+        capacity_fit: { type: boolean }
+        certs_ok: { type: boolean }
+        eligible: { type: boolean }
+        reasons:
+          type: array
+          description: Why a candidate is not eligible.
+          items:
+            type: string
+            enum:
+              [
+                not_prequalified,
+                ko_failed,
+                class_below_min,
+                certificate_missing,
+                capacity_too_small,
+              ]
+
+    # ── intelligence ─────────────────────────────────────────────────────────
+    IntelOverview:
+      type: object
+      required: [vendors_total, prequalified, awaiting_review, documents_expiring_60d]
+      properties:
+        vendors_total: { type: integer }
+        vendors_sub: { type: integer }
+        vendors_sup: { type: integer }
+        prequalified: { type: integer }
+        prequalified_ab: { type: integer }
+        awaiting_review: { type: integer }
+        incomplete: { type: integer }
+        documents_expiring_60d: { type: integer }
+        category_gaps: { type: integer }
+    CoverageRow:
+      type: object
+      required: [category_code, counts]
+      properties:
+        category_code: { type: string }
+        name_az: { type: string }
+        name_en: { type: string }
+        kind: { $ref: "#/components/schemas/CategoryKind" }
+        counts:
+          type: object
+          description: Vendor count per class.
+          additionalProperties: { type: integer }
+        total: { type: integer }
+        ab_share: { type: number, description: Share of class A/B among scored vendors, 0–1. }
+    CapacityRow:
+      type: object
+      required: [category_code, vendor_count]
+      properties:
+        category_code: { type: string }
+        name_az: { type: string }
+        name_en: { type: string }
+        vendor_count: { type: integer }
+        total_turnover: { type: number, description: AZN. }
+        engineers: { type: integer }
+        ongoing_projects: { type: integer, description: The early warning that the good vendors are busy. }
+    PenetrationRow:
+      type: object
+      required: [key, share, count, total]
+      properties:
+        key:
+          type: string
+          enum: [iso9001, iso14001_45001, liability_insurance, audited_statements, hse_specialist]
+        share: { type: number, minimum: 0, maximum: 1 }
+        count: { type: integer }
+        total: { type: integer }
+    SourceMix:
+      type: object
+      required: [by_source, stale_profiles, total_observations]
+      properties:
+        total_observations: { type: integer }
+        by_source:
+          type: array
+          items:
+            type: object
+            properties:
+              source: { $ref: "#/components/schemas/ObservationSource" }
+              count: { type: integer }
+              share: { type: number }
+        stale_profiles: { type: integer, description: Profiles whose newest observation is older than 90 days. }
+        diverging_vendors:
+          type: integer
+          description: Vendors whose API value differs from the self-reported one.
+    ExpiringDocumentPage:
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                allOf:
+                  - $ref: "#/components/schemas/Document"
+                  - type: object
+                    properties:
+                      vendor_name: { type: string }
+    MarketGap:
+      type: object
+      required: [category_code, name_az, name_en]
+      properties:
+        category_code: { type: string }
+        name_az: { type: string }
+        name_en: { type: string }
+        kind: { $ref: "#/components/schemas/CategoryKind" }
+        registered_vendors: { type: integer, description: Vendors in the category that are not prequalified. }
+    AttentionItem:
+      type: object
+      required: [key, count]
+      properties:
+        key:
+          type: string
+          enum: [att_exp, att_rev, att_inc, att_gap]
+          description: i18n key from the prototype's dictionaries.
+        count: { type: integer }
+        severity: { type: string, enum: [info, warn, crit] }
+        link:
+          type: string
+          description: Frontend route the tile navigates to.
+
+    # ── integrations ─────────────────────────────────────────────────────────
+    Adapter:
+      type: object
+      required: [key, status]
+      properties:
+        key: { $ref: "#/components/schemas/AdapterKey" }
+        name_az: { type: string }
+        name_en: { type: string }
+        description_az: { type: string }
+        description_en: { type: string }
+        status: { type: string, enum: [active, planned, needs_configuration] }
+        record_count: { type: integer }
+        last_sync_at: { type: [string, "null"], format: date-time }
+        configured_vendor_count: { type: integer }
+    AdapterConfig:
+      type: object
+      required: [adapter, vendor_id, is_enabled]
+      properties:
+        adapter: { $ref: "#/components/schemas/AdapterKey" }
+        vendor_id: { type: string, format: uuid }
+        is_enabled: { type: boolean }
+        base_url: { type: [string, "null"], format: uri }
+        auth_type: { type: string, enum: [none, basic, bearer, api_key] }
+        username: { type: [string, "null"] }
+        secret_masked: { type: [string, "null"], description: Never the real secret. }
+        field_map:
+          type: object
+          additionalProperties: { type: string }
+          description: Remote path → VendorIQ field code.
+        schedule_cron: { type: [string, "null"] }
+    AdapterConfigInput:
+      type: object
+      properties:
+        is_enabled: { type: boolean }
+        base_url: { type: string, format: uri }
+        auth_type: { type: string, enum: [none, basic, bearer, api_key] }
+        username: { type: string }
+        secret: { type: string, description: Send the masked value back unchanged to keep the stored secret. }
+        field_map:
+          type: object
+          additionalProperties: { type: string }
+        schedule_cron: { type: string }
+    SyncLog:
+      type: object
+      required: [id, adapter, started_at, fields_written, result]
+      properties:
+        id: { type: string, format: uuid }
+        adapter: { $ref: "#/components/schemas/AdapterKey" }
+        vendor_id: { type: [string, "null"], format: uuid }
+        vendor_name: { type: [string, "null"] }
+        started_at: { type: string, format: date-time }
+        finished_at: { type: [string, "null"], format: date-time }
+        fields_written: { type: integer }
+        warnings:
+          type: array
+          items: { $ref: "#/components/schemas/ImportWarning" }
+        result: { $ref: "#/components/schemas/SyncResult" }
+    SyncLogPage:
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/SyncLog" }
+    ImportWarning:
+      type: object
+      required: [code, message_az, message_en]
+      properties:
+        code:
+          type: string
+          enum:
+            - stale_certificate
+            - mixed_percent_format
+            - multi_value_cell
+            - no_expiry_literal
+            - mandatory_cell_empty
+            - currency_label_mismatch
+            - unknown_field_code
+            - unparsable_date
+        field_code: { type: [string, "null"] }
+        sheet: { type: [string, "null"] }
+        cell: { type: [string, "null"] }
+        raw_value: { type: [string, "null"] }
+        message_az: { type: string }
+        message_en: { type: string }
+    ImportPreview:
+      type: object
+      required: [preview_id, kind, fields, documents, warnings]
+      properties:
+        preview_id: { type: string, format: uuid, description: Valid for one hour. }
+        kind: { type: string, enum: [application_form, scoring_workbook] }
+        source_filename: { type: string }
+        matched_vendor: { $ref: "#/components/schemas/Vendor" }
+        fields:
+          type: array
+          items:
+            type: object
+            properties:
+              field_code: { type: string }
+              value: { type: [string, number, boolean, "null"] }
+              unit: { type: [string, "null"] }
+              sheet: { type: string }
+              cell: { type: string }
+              current_value: { type: [string, number, boolean, "null"] }
+              will_change: { type: boolean }
+        tables:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: object, additionalProperties: true }
+        documents:
+          type: array
+          items:
+            type: object
+            properties:
+              code: { type: string }
+              status: { $ref: "#/components/schemas/DocumentStatus" }
+        derived_raw:
+          type: object
+          additionalProperties: { type: [number, "null"] }
+        warnings:
+          type: array
+          items: { $ref: "#/components/schemas/ImportWarning" }
+    ApiKey:
+      type: object
+      required: [id, name, scopes, is_active]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        scopes:
+          type: array
+          items: { $ref: "#/components/schemas/Scope" }
+        prefix: { type: string, description: First characters of the key, so it can be identified. }
+        created_by: { type: [string, "null"], format: uuid }
+        created_at: { type: string, format: date-time }
+        last_used_at: { type: [string, "null"], format: date-time }
+        is_active: { type: boolean }
+    ApiKeyCreated:
+      allOf:
+        - $ref: "#/components/schemas/ApiKey"
+        - type: object
+          required: [key]
+          properties:
+            key: { type: string, description: The plaintext key — shown once and never again. }
+    Webhook:
+      type: object
+      required: [id, url, events, is_active]
+      properties:
+        id: { type: string, format: uuid }
+        url: { type: string, format: uri }
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/EventType" }
+        is_active: { type: boolean }
+        last_delivery_at: { type: [string, "null"], format: date-time }
+        failure_count: { type: integer }
+    WebhookInput:
+      type: object
+      required: [url, events]
+      properties:
+        url: { type: string, format: uri }
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/EventType" }
+        is_active: { type: boolean, default: true }
+    WebhookCreated:
+      allOf:
+        - $ref: "#/components/schemas/Webhook"
+        - type: object
+          required: [secret]
+          properties:
+            secret:
+              type: string
+              description: HMAC secret for the `X-VendorIQ-Signature` header — shown once.
+    WebhookDelivery:
+      type: object
+      required: [delivered, status_code]
+      properties:
+        delivered: { type: boolean }
+        status_code: { type: [integer, "null"] }
+        duration_ms: { type: integer }
+        error: { type: [string, "null"] }
+
+    # ── admin ────────────────────────────────────────────────────────────────
+    User:
+      type: object
+      required: [id, email, role, is_active]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        full_name: { type: [string, "null"] }
+        role: { $ref: "#/components/schemas/UserRole" }
+        vendor_id: { type: [string, "null"], format: uuid }
+        vendor_name: { type: [string, "null"] }
+        locale: { type: string, enum: [az, en] }
+        is_active: { type: boolean }
+        has_totp: { type: boolean }
+        last_login_at: { type: [string, "null"], format: date-time }
+    UserInput:
+      type: object
+      required: [email, role]
+      properties:
+        email: { type: string, format: email }
+        full_name: { type: string }
+        role: { $ref: "#/components/schemas/UserRole" }
+        vendor_id: { type: [string, "null"], format: uuid }
+        locale: { type: string, enum: [az, en] }
+        is_active: { type: boolean }
+        password: { type: string, format: password, description: Staff roles only. }
+    UserCreated:
+      allOf:
+        - $ref: "#/components/schemas/User"
+        - type: object
+          properties:
+            totp_provisioning_uri:
+              type: [string, "null"]
+              description: "`otpauth://` URI for the authenticator app — returned once."
+    UserPage:
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/User" }
+    Settings:
+      type: object
+      description: Every threshold in the system, as one object keyed by setting group.
+      properties:
+        matching:
+          type: object
+          properties:
+            strong_min: { type: integer }
+            capacity_ratio: { type: number }
+            supplier_turnover_divisor: { type: number }
+            default_min_class: { $ref: "#/components/schemas/ScoreClass" }
+        qualification:
+          type: object
+          properties:
+            validity_months: { type: integer }
+            pass_mark: { type: number }
+            tax_clearance_validity_months: { type: integer, description: A-05, three months. }
+        freshness:
+          type: object
+          properties:
+            financials_months: { type: integer }
+            headcount_months: { type: integer }
+            stale_profile_days: { type: integer }
+        notifications:
+          type: object
+          properties:
+            expiry_reminder_days:
+              type: array
+              items: { type: integer }
+              examples: [[30, 7]]
+            expiring_window_days: { type: integer, default: 60 }
+            email_enabled: { type: boolean }
+        organisation:
+          type: object
+          properties:
+            name: { type: string }
+            default_locale: { type: string, enum: [az, en] }
+            currency: { type: string, const: AZN }
+    SettingsPatch:
+      type: object
+      description: A partial `Settings`; unknown keys are rejected.
+      additionalProperties: true
+    AuditEvent:
+      type: object
+      required: [id, entity_type, action, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        actor_id: { type: [string, "null"], format: uuid }
+        actor_email: { type: [string, "null"] }
+        entity_type: { type: string }
+        entity_id: { type: [string, "null"], format: uuid }
+        action: { type: string, examples: ["update", "decide", "login"] }
+        before: { type: [object, "null"], additionalProperties: true }
+        after: { type: [object, "null"], additionalProperties: true }
+        created_at: { type: string, format: date-time }
+    AuditEventPage:
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/AuditEvent" }
+
+    # ── events ───────────────────────────────────────────────────────────────
+    Event:
+      type: object
+      required: [id, type, entity_type, payload, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        type: { $ref: "#/components/schemas/EventType" }
+        entity_type: { type: string }
+        entity_id: { type: [string, "null"], format: uuid }
+        payload: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+    EventPage:
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/Event" }

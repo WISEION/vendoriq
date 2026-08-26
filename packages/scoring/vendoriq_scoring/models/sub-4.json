@@ -1,0 +1,507 @@
+{
+  "version": "sub-4",
+  "vendor_type": "sub",
+  "name_az": "Subpodratçı modeli — Rev4",
+  "name_en": "Subcontractor model — Rev4",
+  "status": "active",
+  "pass_mark": 70,
+  "validity_months": 12,
+  "currency": "AZN",
+  "total_max": 100,
+  "groups": [
+    {
+      "group": "A",
+      "name_az": "Şirkət profili",
+      "name_en": "Company profile",
+      "max": 15
+    },
+    {
+      "group": "B",
+      "name_az": "Maliyyə",
+      "name_en": "Financial",
+      "max": 20
+    },
+    {
+      "group": "C",
+      "name_az": "Texniki təcrübə",
+      "name_en": "Technical experience",
+      "max": 25
+    },
+    {
+      "group": "D",
+      "name_az": "Maddi-texniki baza",
+      "name_en": "Facilities",
+      "max": 10
+    },
+    {
+      "group": "E",
+      "name_az": "Kadr resursları",
+      "name_en": "Human resources",
+      "max": 15
+    },
+    {
+      "group": "F",
+      "name_az": "SƏTƏMM və keyfiyyət",
+      "name_en": "HSE & quality",
+      "max": 10
+    },
+    {
+      "group": "G",
+      "name_az": "Sığorta və referanslar",
+      "name_en": "Insurance & references",
+      "max": 5
+    }
+  ],
+  "criteria": [
+    {
+      "code": "A.1",
+      "group": "A",
+      "max": 5,
+      "kind": "rubric",
+      "spec": null,
+      "ko": true,
+      "name_az": "Tikinti lisenziyası",
+      "name_en": "Construction licence",
+      "unit": null,
+      "evidence_doc": "A-04"
+    },
+    {
+      "code": "A.2",
+      "group": "A",
+      "max": 3,
+      "kind": "bands",
+      "spec": {
+        "zero": 0,
+        "bands": [
+          [
+            3,
+            1
+          ],
+          [
+            7,
+            2
+          ]
+        ],
+        "top": 3
+      },
+      "ko": false,
+      "name_az": "Fəaliyyət ili",
+      "name_en": "Years in operation",
+      "unit": "il",
+      "evidence_doc": "A-02"
+    },
+    {
+      "code": "A.3",
+      "group": "A",
+      "max": 2,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "Hüquqi strukturun şəffaflığı",
+      "name_en": "Legal structure transparency",
+      "unit": null,
+      "evidence_doc": "A-03"
+    },
+    {
+      "code": "A.4",
+      "group": "A",
+      "max": 5,
+      "kind": "rubric",
+      "spec": null,
+      "ko": true,
+      "name_az": "Vergi borcsuzluğu arayışı",
+      "name_en": "Tax clearance",
+      "unit": null,
+      "evidence_doc": "A-05"
+    },
+    {
+      "code": "B.1",
+      "group": "B",
+      "max": 8,
+      "kind": "thresh",
+      "spec": {
+        "cuts": [
+          [
+            500000,
+            0
+          ],
+          [
+            1000000,
+            0.25
+          ],
+          [
+            5000000,
+            0.5
+          ],
+          [
+            10000000,
+            0.75
+          ]
+        ],
+        "top": 1
+      },
+      "ko": false,
+      "name_az": "Orta illik dövriyyə (3 il)",
+      "name_en": "Avg annual turnover (3y)",
+      "unit": "AZN",
+      "evidence_doc": "B-01"
+    },
+    {
+      "code": "B.2",
+      "group": "B",
+      "max": 5,
+      "kind": "thresh",
+      "spec": {
+        "cuts": [
+          [
+            500000,
+            0
+          ],
+          [
+            1000000,
+            0.3
+          ],
+          [
+            2500000,
+            0.6
+          ]
+        ],
+        "top": 1
+      },
+      "ko": false,
+      "name_az": "Öz kapitalı",
+      "name_en": "Equity",
+      "unit": "AZN",
+      "evidence_doc": "B-02"
+    },
+    {
+      "code": "B.3",
+      "group": "B",
+      "max": 3,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "Bank kredit xətti",
+      "name_en": "Bank credit line",
+      "unit": null,
+      "evidence_doc": "B-03"
+    },
+    {
+      "code": "B.4",
+      "group": "B",
+      "max": 4,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "Auditdən keçmiş hesabat",
+      "name_en": "Audited statements",
+      "unit": null,
+      "evidence_doc": "B-04"
+    },
+    {
+      "code": "C.1",
+      "group": "C",
+      "max": 9,
+      "kind": "thresh",
+      "spec": {
+        "cuts": [
+          [
+            2,
+            0
+          ],
+          [
+            5,
+            0.3
+          ],
+          [
+            10,
+            0.7
+          ]
+        ],
+        "top": 1
+      },
+      "ko": false,
+      "name_az": "Oxşar layihə sayı (5 il)",
+      "name_en": "Similar projects (5y)",
+      "unit": "ədəd",
+      "evidence_doc": "C-01"
+    },
+    {
+      "code": "C.2",
+      "group": "C",
+      "max": 7,
+      "kind": "thresh",
+      "spec": {
+        "cuts": [
+          [
+            1000000,
+            0
+          ],
+          [
+            3000000,
+            0.4
+          ],
+          [
+            7000000,
+            0.75
+          ]
+        ],
+        "top": 1
+      },
+      "ko": false,
+      "name_az": "Ən böyük layihənin dəyəri",
+      "name_en": "Largest project value",
+      "unit": "AZN",
+      "evidence_doc": "C-01"
+    },
+    {
+      "code": "C.3",
+      "group": "C",
+      "max": 4,
+      "kind": "ongoing",
+      "spec": null,
+      "ko": false,
+      "name_az": "Davam edən layihələr",
+      "name_en": "Ongoing projects",
+      "unit": "ədəd",
+      "evidence_doc": "C-01"
+    },
+    {
+      "code": "C.4",
+      "group": "C",
+      "max": 5,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "ISO 9001",
+      "name_en": "ISO 9001",
+      "unit": null,
+      "evidence_doc": "C-02"
+    },
+    {
+      "code": "D.1",
+      "group": "D",
+      "max": 3,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "Ofis və emalatxana",
+      "name_en": "Office & workshop",
+      "unit": null,
+      "evidence_doc": "D-01"
+    },
+    {
+      "code": "D.2",
+      "group": "D",
+      "max": 4,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "Avadanlıq və alətlər",
+      "name_en": "Equipment & tools",
+      "unit": null,
+      "evidence_doc": "D-02"
+    },
+    {
+      "code": "D.3",
+      "group": "D",
+      "max": 3,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "Nəqliyyat parkı",
+      "name_en": "Fleet",
+      "unit": null,
+      "evidence_doc": "D-03"
+    },
+    {
+      "code": "E.1",
+      "group": "E",
+      "max": 4,
+      "kind": "thresh",
+      "spec": {
+        "cuts": [
+          [
+            20,
+            0
+          ],
+          [
+            50,
+            0.4
+          ],
+          [
+            100,
+            0.75
+          ]
+        ],
+        "top": 1
+      },
+      "ko": false,
+      "name_az": "Daimi heyət sayı",
+      "name_en": "Permanent staff",
+      "unit": "nəfər",
+      "evidence_doc": "E-01"
+    },
+    {
+      "code": "E.2",
+      "group": "E",
+      "max": 4,
+      "kind": "thresh",
+      "spec": {
+        "cuts": [
+          [
+            3,
+            0
+          ],
+          [
+            8,
+            0.4
+          ],
+          [
+            16,
+            0.75
+          ]
+        ],
+        "top": 1
+      },
+      "ko": false,
+      "name_az": "Mühəndis heyəti",
+      "name_en": "Engineers",
+      "unit": "nəfər",
+      "evidence_doc": "E-02"
+    },
+    {
+      "code": "E.3",
+      "group": "E",
+      "max": 3,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "SƏTƏMM mütəxəssisi",
+      "name_en": "HSE specialist",
+      "unit": null,
+      "evidence_doc": "E-03"
+    },
+    {
+      "code": "E.4",
+      "group": "E",
+      "max": 4,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "Subpodratçı bazası",
+      "name_en": "Subcontractor base",
+      "unit": null,
+      "evidence_doc": "E-04"
+    },
+    {
+      "code": "F.1",
+      "group": "F",
+      "max": 4,
+      "kind": "rubric",
+      "spec": null,
+      "ko": true,
+      "name_az": "SƏTƏMM siyasəti və planı",
+      "name_en": "HSE policy & plan",
+      "unit": null,
+      "evidence_doc": "F-01"
+    },
+    {
+      "code": "F.2",
+      "group": "F",
+      "max": 3,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "ISO 14001 / 45001",
+      "name_en": "ISO 14001 / 45001",
+      "unit": null,
+      "evidence_doc": "F-03"
+    },
+    {
+      "code": "F.3",
+      "group": "F",
+      "max": 3,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "Bədbəxt hadisə göstəricisi",
+      "name_en": "Accident record",
+      "unit": null,
+      "evidence_doc": "F-05"
+    },
+    {
+      "code": "G.1",
+      "group": "G",
+      "max": 3,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "Məsuliyyət sığortası",
+      "name_en": "Liability insurance",
+      "unit": null,
+      "evidence_doc": "G-01"
+    },
+    {
+      "code": "G.2",
+      "group": "G",
+      "max": 2,
+      "kind": "thresh",
+      "spec": {
+        "cuts": [
+          [
+            1,
+            0
+          ],
+          [
+            3,
+            0.4
+          ],
+          [
+            6,
+            0.7
+          ]
+        ],
+        "top": 1
+      },
+      "ko": false,
+      "name_az": "Referans sayı",
+      "name_en": "References",
+      "unit": "ədəd",
+      "evidence_doc": "G-02"
+    }
+  ],
+  "classes": [
+    {
+      "cls": "A",
+      "min": 90,
+      "label_az": "Əla (DƏVƏT)",
+      "label_en": "Excellent (invite)"
+    },
+    {
+      "cls": "B",
+      "min": 80,
+      "label_az": "Yaxşı (DƏVƏT)",
+      "label_en": "Good (invite)"
+    },
+    {
+      "cls": "C",
+      "min": 70,
+      "label_az": "Şərti DƏVƏT",
+      "label_en": "Conditional invite"
+    },
+    {
+      "cls": "D",
+      "min": 60,
+      "label_az": "Dəvət edilmir",
+      "label_en": "Not invited"
+    },
+    {
+      "cls": "F",
+      "min": 0,
+      "label_az": "RƏDD",
+      "label_en": "Reject"
+    }
+  ],
+  "source": "docs/design/scoring.js (SUB_CRITERIA) / docs/design/app.js (SUP_CRITERIA)"
+}

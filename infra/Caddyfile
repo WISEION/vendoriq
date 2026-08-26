@@ -1,0 +1,30 @@
+# Dev:  DOMAIN=localhost   TLS_DIRECTIVE="tls internal"
+# Prod: DOMAIN=vendoriq.example.az   TLS_DIRECTIVE="tls ops@example.az"   (ACME, automatic)
+{$DOMAIN} {
+	{$TLS_DIRECTIVE}
+
+	encode zstd gzip
+
+	# Security headers. No inline scripts are used by the bundle, so the CSP can stay strict.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# Everything under /api is the FastAPI service, including /api/docs and /api/openapi.yaml.
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle /health {
+		reverse_proxy api:8000
+	}
+
+	# Everything else is the single-page app.
+	handle {
+		reverse_proxy web:80
+	}
+}

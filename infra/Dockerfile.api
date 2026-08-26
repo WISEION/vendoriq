@@ -1,0 +1,39 @@
+# VendorIQ API image. Built from the repository root so the workspace packages resolve.
+FROM python:3.11-slim AS base
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=1 \
+    PATH="/app/.venv/bin:$PATH"
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libpq5 curl \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
+
+WORKDIR /app
+
+# Dependency layer: copy only the manifests so the layer caches across code changes.
+COPY pyproject.toml uv.lock* ./
+COPY apps/api/pyproject.toml apps/api/
+COPY apps/worker/pyproject.toml apps/worker/
+COPY packages/scoring/pyproject.toml packages/scoring/
+COPY packages/excel_import/pyproject.toml packages/excel_import/
+RUN uv sync --frozen --no-dev --no-install-workspace || uv sync --no-dev --no-install-workspace
+
+COPY packages/ packages/
+COPY apps/api/ apps/api/
+COPY docs/openapi.yaml docs/openapi.yaml
+RUN uv sync --no-dev
+
+RUN useradd --system --uid 10001 vendoriq && chown -R vendoriq /app
+USER vendoriq
+
+WORKDIR /app/apps/api
+EXPOSE 8000
+HEALTHCHECK --interval=15s --timeout=5s --retries=6 \
+    CMD curl -fsS http://localhost:8000/health || exit 1
+
+CMD ["uvicorn", "vendoriq_api.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]

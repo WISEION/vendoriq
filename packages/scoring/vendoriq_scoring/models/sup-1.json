@@ -1,0 +1,428 @@
+{
+  "version": "sup-1",
+  "vendor_type": "sup",
+  "name_az": "Tədarükçü modeli — v1 (təklif)",
+  "name_en": "Supplier model — v1 (proposed)",
+  "status": "proposed",
+  "pass_mark": 70,
+  "validity_months": 12,
+  "currency": "AZN",
+  "total_max": 100,
+  "groups": [
+    {
+      "group": "A",
+      "name_az": "Şirkət profili",
+      "name_en": "Company profile",
+      "max": 15
+    },
+    {
+      "group": "B",
+      "name_az": "Maliyyə",
+      "name_en": "Financial",
+      "max": 15
+    },
+    {
+      "group": "C",
+      "name_az": "Məhsul və texniki imkan",
+      "name_en": "Product & technical",
+      "max": 25
+    },
+    {
+      "group": "D",
+      "name_az": "Logistika",
+      "name_en": "Logistics",
+      "max": 15
+    },
+    {
+      "group": "E",
+      "name_az": "Kommersiya",
+      "name_en": "Commercial",
+      "max": 15
+    },
+    {
+      "group": "F",
+      "name_az": "Keyfiyyət və SƏTƏMM",
+      "name_en": "Quality & HSE",
+      "max": 10
+    },
+    {
+      "group": "G",
+      "name_az": "Referanslar",
+      "name_en": "References",
+      "max": 5
+    }
+  ],
+  "criteria": [
+    {
+      "code": "A.1",
+      "group": "A",
+      "max": 5,
+      "kind": "rubric",
+      "spec": null,
+      "ko": true,
+      "name_az": "Qeydiyyat / fəaliyyət icazəsi",
+      "name_en": "Registration / trade permit",
+      "unit": null,
+      "evidence_doc": "A-01"
+    },
+    {
+      "code": "A.2",
+      "group": "A",
+      "max": 3,
+      "kind": "bands",
+      "spec": {
+        "zero": 0,
+        "bands": [
+          [
+            3,
+            1
+          ],
+          [
+            7,
+            2
+          ]
+        ],
+        "top": 3
+      },
+      "ko": false,
+      "name_az": "Fəaliyyət ili",
+      "name_en": "Years in operation",
+      "unit": "il",
+      "evidence_doc": "A-02"
+    },
+    {
+      "code": "A.3",
+      "group": "A",
+      "max": 2,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "Hüquqi strukturun şəffaflığı",
+      "name_en": "Legal structure transparency",
+      "unit": null,
+      "evidence_doc": "A-03"
+    },
+    {
+      "code": "A.4",
+      "group": "A",
+      "max": 5,
+      "kind": "rubric",
+      "spec": null,
+      "ko": true,
+      "name_az": "Vergi borcsuzluğu arayışı",
+      "name_en": "Tax clearance",
+      "unit": null,
+      "evidence_doc": "A-05"
+    },
+    {
+      "code": "B.1",
+      "group": "B",
+      "max": 6,
+      "kind": "thresh",
+      "spec": {
+        "cuts": [
+          [
+            1000000,
+            0
+          ],
+          [
+            3000000,
+            0.25
+          ],
+          [
+            10000000,
+            0.5
+          ],
+          [
+            25000000,
+            0.75
+          ]
+        ]
+      },
+      "ko": false,
+      "name_az": "Orta illik dövriyyə",
+      "name_en": "Avg annual turnover",
+      "unit": "AZN",
+      "evidence_doc": "B-01"
+    },
+    {
+      "code": "B.2",
+      "group": "B",
+      "max": 4,
+      "kind": "thresh",
+      "spec": {
+        "cuts": [
+          [
+            500000,
+            0
+          ],
+          [
+            1000000,
+            0.3
+          ],
+          [
+            3000000,
+            0.6
+          ]
+        ]
+      },
+      "ko": false,
+      "name_az": "Öz kapitalı",
+      "name_en": "Equity",
+      "unit": "AZN",
+      "evidence_doc": "B-02"
+    },
+    {
+      "code": "B.3",
+      "group": "B",
+      "max": 2,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "Bank kredit xətti",
+      "name_en": "Bank credit line",
+      "unit": null,
+      "evidence_doc": "B-03"
+    },
+    {
+      "code": "B.4",
+      "group": "B",
+      "max": 3,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "Auditdən keçmiş hesabat",
+      "name_en": "Audited statements",
+      "unit": null,
+      "evidence_doc": "B-04"
+    },
+    {
+      "code": "C.1",
+      "group": "C",
+      "max": 7,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "Məhsul çeşidinin əhatəsi",
+      "name_en": "Product range coverage",
+      "unit": null,
+      "evidence_doc": "C-01"
+    },
+    {
+      "code": "C.2",
+      "group": "C",
+      "max": 7,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "İstehsal / anbar gücü",
+      "name_en": "Production / stock capacity",
+      "unit": null,
+      "evidence_doc": "C-01"
+    },
+    {
+      "code": "C.3",
+      "group": "C",
+      "max": 5,
+      "kind": "rubric",
+      "spec": null,
+      "ko": true,
+      "name_az": "İstehsalçı avtorizasiyası / mənşə",
+      "name_en": "Manufacturer authorisation / origin",
+      "unit": null,
+      "evidence_doc": "C-01"
+    },
+    {
+      "code": "C.4",
+      "group": "C",
+      "max": 6,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "Məhsul sertifikatları (CE, GOST, test)",
+      "name_en": "Product certificates (CE, GOST, tests)",
+      "unit": null,
+      "evidence_doc": "C-02"
+    },
+    {
+      "code": "D.1",
+      "group": "D",
+      "max": 5,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "Yerli anbar / ehtiyat",
+      "name_en": "Local warehouse / stock",
+      "unit": null,
+      "evidence_doc": "D-01"
+    },
+    {
+      "code": "D.2",
+      "group": "D",
+      "max": 4,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "Öz nəqliyyatı",
+      "name_en": "Own transport",
+      "unit": null,
+      "evidence_doc": "D-03"
+    },
+    {
+      "code": "D.3",
+      "group": "D",
+      "max": 6,
+      "kind": "leadtime",
+      "spec": null,
+      "ko": false,
+      "name_az": "Orta tədarük müddəti (gün)",
+      "name_en": "Average lead time (days)",
+      "unit": "gün",
+      "evidence_doc": "C-01"
+    },
+    {
+      "code": "E.1",
+      "group": "E",
+      "max": 6,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "Qiymət rəqabətliliyi",
+      "name_en": "Price competitiveness",
+      "unit": null,
+      "evidence_doc": "B-01"
+    },
+    {
+      "code": "E.2",
+      "group": "E",
+      "max": 5,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "Ödəniş şərtləri",
+      "name_en": "Payment terms",
+      "unit": null,
+      "evidence_doc": "B-03"
+    },
+    {
+      "code": "E.3",
+      "group": "E",
+      "max": 4,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "Zəmanət şərtləri",
+      "name_en": "Warranty terms",
+      "unit": null,
+      "evidence_doc": "C-01"
+    },
+    {
+      "code": "F.1",
+      "group": "F",
+      "max": 4,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "ISO 9001",
+      "name_en": "ISO 9001",
+      "unit": null,
+      "evidence_doc": "C-02"
+    },
+    {
+      "code": "F.2",
+      "group": "F",
+      "max": 3,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "Qüsur / qaytarma göstəricisi",
+      "name_en": "Defect / return record",
+      "unit": null,
+      "evidence_doc": "F-05"
+    },
+    {
+      "code": "F.3",
+      "group": "F",
+      "max": 3,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "Sahəyə çatdırılma SƏTƏMM uyğunluğu",
+      "name_en": "Site delivery HSE compliance",
+      "unit": null,
+      "evidence_doc": "F-01"
+    },
+    {
+      "code": "G.1",
+      "group": "G",
+      "max": 3,
+      "kind": "thresh",
+      "spec": {
+        "cuts": [
+          [
+            1,
+            0
+          ],
+          [
+            3,
+            0.4
+          ],
+          [
+            6,
+            0.7
+          ]
+        ]
+      },
+      "ko": false,
+      "name_az": "Referans sayı",
+      "name_en": "References",
+      "unit": "ədəd",
+      "evidence_doc": "G-02"
+    },
+    {
+      "code": "G.2",
+      "group": "G",
+      "max": 2,
+      "kind": "rubric",
+      "spec": null,
+      "ko": false,
+      "name_az": "Çatdırılma tarixçəsi",
+      "name_en": "Delivery track record",
+      "unit": null,
+      "evidence_doc": "G-02"
+    }
+  ],
+  "classes": [
+    {
+      "cls": "A",
+      "min": 90,
+      "label_az": "Əla (DƏVƏT)",
+      "label_en": "Excellent (invite)"
+    },
+    {
+      "cls": "B",
+      "min": 80,
+      "label_az": "Yaxşı (DƏVƏT)",
+      "label_en": "Good (invite)"
+    },
+    {
+      "cls": "C",
+      "min": 70,
+      "label_az": "Şərti DƏVƏT",
+      "label_en": "Conditional invite"
+    },
+    {
+      "cls": "D",
+      "min": 60,
+      "label_az": "Dəvət edilmir",
+      "label_en": "Not invited"
+    },
+    {
+      "cls": "F",
+      "min": 0,
+      "label_az": "RƏDD",
+      "label_en": "Reject"
+    }
+  ],
+  "source": "docs/design/scoring.js (SUB_CRITERIA) / docs/design/app.js (SUP_CRITERIA)"
+}

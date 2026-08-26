@@ -1,0 +1,31 @@
+/* VendorIQ design tokens — decision "A + D":
+   palette & type from Direction A (Blueprint Dark, approved by management), light theme from B,
+   shape & spacing from Direction D (14px cards, 10px controls, softer shadows, roomier rows). */
+:root{
+  /* light (B palette) */
+  --ink:#0E1A2B; --ink-2:#182A44; --paper:#F4F6F9; --card:#FFFFFF; --text:#12203A; --muted:#5B6B82; --line:#DCE2EA; --line-2:#EDF0F4;
+  --accent:#2451B5; --accent-ink:#FFFFFF; --accent-soft:#E6ECFA;
+  --good:#1B7F4E; --good-soft:#E3F3EA; --warn:#B7791F; --warn-soft:#FBF1DC; --crit:#B93A2F; --crit-soft:#F9E5E2;
+  --cA:#1B7F4E; --cB:#4C8C2B; --cC:#B7791F; --cD:#C05A24; --cF:#B93A2F; --cKO:#7A2F28; --cNA:#8A96A8; --doc:#6D3FC4;
+  --rail:#0E1A2B; --rail-text:#C9D3E3; --rail-active:#FFFFFF; --rail-hover:rgba(255,255,255,.06);
+  --shadow:0 2px 6px rgba(14,26,43,.06),0 12px 28px rgba(14,26,43,.06);
+  /* shape & spacing (D) */
+  --r-card:14px; --r-ctl:10px; --r-pill:999px; --r-badge:8px;
+  --row-pad:12px; --card-pad:20px; --gap:16px; --ctl-h:36px;
+  /* type (A) */
+  --fh:'Archivo',system-ui,sans-serif; --fb:'Public Sans',system-ui,sans-serif; --fm:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --ink:#0A1220; --ink-2:#121F33; --paper:#0F1826; --card:#172236; --text:#E6ECF5; --muted:#94A3B8; --line:#2A3A52; --line-2:#1F2D42;
+  --accent:#7A9BEF; --accent-ink:#0A1220; --accent-soft:#1E2E52;
+  --good:#4CC486; --good-soft:#153327; --warn:#E0B052; --warn-soft:#3A2E12; --crit:#F08A7D; --crit-soft:#3E1F1B;
+  --cA:#4CC486; --cB:#8FCB5A; --cC:#E0B052; --cD:#E58A5A; --cF:#F08A7D; --cKO:#C86A5E; --cNA:#7A8799; --doc:#B9A0F0;
+  --rail:#0A1220; --rail-text:#AFBBCC; --shadow:0 2px 6px rgba(0,0,0,.3),0 12px 28px rgba(0,0,0,.28);
+}}
+:root[data-theme="dark"]{
+  --ink:#0A1220; --ink-2:#121F33; --paper:#0F1826; --card:#172236; --text:#E6ECF5; --muted:#94A3B8; --line:#2A3A52; --line-2:#1F2D42;
+  --accent:#7A9BEF; --accent-ink:#0A1220; --accent-soft:#1E2E52;
+  --good:#4CC486; --good-soft:#153327; --warn:#E0B052; --warn-soft:#3A2E12; --crit:#F08A7D; --crit-soft:#3E1F1B;
+  --cA:#4CC486; --cB:#8FCB5A; --cC:#E0B052; --cD:#E58A5A; --cF:#F08A7D; --cKO:#C86A5E; --cNA:#7A8799; --doc:#B9A0F0;
+  --rail:#0A1220; --rail-text:#AFBBCC; --shadow:0 2px 6px rgba(0,0,0,.3),0 12px 28px rgba(0,0,0,.28);
+}

@@ -1,0 +1,78 @@
+# VendorIQ — developer entry points.
+#
+# Everything runs natively; Docker is optional (see infra/docker-compose.yml). The API and the
+# worker share one uv-managed virtual environment at the repository root.
+SHELL := /bin/bash
+.DEFAULT_GOAL := help
+
+UV        ?= uv
+PY        ?= .venv/bin/python
+API_DIR   := apps/api
+WEB_DIR   := apps/web
+DB_URL    ?= postgresql+psycopg://vendoriq:vendoriq@localhost:5432/vendoriq
+TEST_DB_URL ?= postgresql+psycopg://vendoriq:vendoriq@localhost:5432/vendoriq_test
+API_PORT  ?= 8000
+WEB_PORT  ?= 5173
+
+.PHONY: help setup db-up migrate seed seed-demo purge-demo api web worker test e2e lint format screenshots openapi-validate clean
+
+help: ## Show the available targets
+	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[1m%-16s\033[0m %s\n", $$1, $$2}'
+
+setup: ## Install Python and Node dependencies
+	$(UV) sync --all-packages --all-groups
+	cd $(WEB_DIR) && npm install --no-audit --no-fund
+
+db-up: ## Create the vendoriq role and both databases (needs a local postgres)
+	@bash scripts/db-up.sh
+
+migrate: ## Apply migrations to the app and the test database
+	cd $(API_DIR) && DATABASE_URL="$(DB_URL)" ../../$(PY) -m alembic upgrade head
+	cd $(API_DIR) && DATABASE_URL="$(TEST_DB_URL)" ../../$(PY) -m alembic upgrade head
+
+seed: ## Load the real seed data (idempotent) — phase 1E
+	$(PY) -m vendoriq_api.seed load --real
+
+seed-demo: ## Load the demo layer on top (is_demo=true) — phase 1E
+	$(PY) -m vendoriq_api.seed load --demo
+
+purge-demo: ## Remove every is_demo row, leaving only real data — phase 1E
+	$(PY) -m vendoriq_api.seed purge-demo
+
+api: ## Run the API at http://localhost:$(API_PORT) (/health, /api/docs)
+	DATABASE_URL="$(DB_URL)" $(PY) -m uvicorn vendoriq_api.main:app \
+		--app-dir $(API_DIR) --host 0.0.0.0 --port $(API_PORT) --reload
+
+web: ## Run the web app at http://localhost:$(WEB_PORT)
+	WEB_PORT=$(WEB_PORT) bash scripts/web-dev.sh
+
+worker: ## Run the scheduled jobs
+	DATABASE_URL="$(DB_URL)" $(PY) -m vendoriq_worker.main
+
+test: ## Run the Python and the frontend unit tests
+	DATABASE_URL="$(TEST_DB_URL)" $(PY) -m pytest
+	cd $(WEB_DIR) && npm run test
+
+e2e: ## Run the Playwright suite (needs make api and make web running, or CI's servers)
+	cd $(WEB_DIR) && npm run e2e
+
+lint: ## ruff + mypy + eslint + tsc
+	ruff check .
+	ruff format --check .
+	mypy .
+	cd $(WEB_DIR) && npm run lint && npm run typecheck
+
+format: ## Apply ruff and prettier formatting
+	ruff format .
+	ruff check --fix .
+	cd $(WEB_DIR) && npm run format
+
+screenshots: ## Capture all 34 screens × AZ/EN into docs/screens/
+	cd $(WEB_DIR) && npm run e2e:screenshots
+
+openapi-validate: ## Validate docs/openapi.yaml against the OpenAPI 3.1 metaschema
+	$(PY) -m pytest $(API_DIR)/tests/test_openapi_contract.py -q
+
+clean: ## Remove build artefacts and caches
+	rm -rf .pytest_cache .ruff_cache .mypy_cache $(WEB_DIR)/dist $(WEB_DIR)/test-results
+	find . -name __pycache__ -type d -prune -exec rm -rf {} +

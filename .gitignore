@@ -1,0 +1,34 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+apps/web/dist/
+apps/web/.vite/
+apps/web/coverage/
+apps/web/playwright-report/
+apps/web/test-results/
+
+# Local environment
+.env
+.env.local
+infra/.env
+
+# Local file storage backend (STORAGE_BACKEND=local)
+var/
+storage/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
