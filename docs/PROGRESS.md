@@ -2,6 +2,25 @@
 
 Updated: 2026-08-26 · branch `claude/vendoriq-orchestration-7ls8e6`
 
+## Gate 2 — PASSED
+
+| Criterion (brief §4.2) | Evidence |
+|---|---|
+| All 34 screens reachable | 34/34, walked in a browser under a real staff session and a real vendor session — not inferred from the route table, which compiled green while the app rendered a blank page |
+| Every endpoint covered by an integration test | 103/103 contract operations are requested from a test |
+| No business logic in the frontend | `no-restricted-imports` blocks `packages/scoring` and any import leaving `apps/web`; mutation-tested. Its limit is written down: it cannot catch an inline reimplementation, and the report says so |
+| Suite | 1015 pytest · 52 vitest · 6 Playwright · ruff, ruff format, mypy, eslint, tsc, build |
+| CI | green on the PR head: Python, Web, OpenAPI contract, Docker build, Playwright |
+
+102 of the 103 operations are served by a router; the one the counter calls missing is
+`/health`, which is mounted at the root separately.
+
+Two of the checks were wrong before the code was. The endpoint-coverage regex excluded the
+quote inside an f-string interpolation and reported six project paths as untested when the
+tests exercise all six; the screen walk called the sign-in screens unreachable for being under
+200 characters, which is simply how long a sign-in form is. Both were fixed and the screens
+re-verified by their controls — every input has a label, 1/1, 2/2 and 9/9.
+
 ## Gate 1 — PASSED
 
 Evidence, all re-run by the orchestrator rather than taken from worker reports:
