@@ -26,6 +26,12 @@ RUN uv sync --frozen --no-dev --no-install-workspace || uv sync --no-dev --no-in
 COPY packages/ packages/
 COPY apps/api/ apps/api/
 COPY docs/openapi.yaml docs/openapi.yaml
+# The seed CLI resolves `seed/data.json` from the repository root, which inside this image is
+# /app. Without it `python -m vendoriq_api.seed` cannot run in a container at all, and brief
+# §7.1 requires a clean `docker compose up` to come up *with* seeded data. Only the JSON is
+# copied: the Excel workbooks under seed/fixtures/ are test fixtures, and the mocked ERP
+# responses live inside the adapters package.
+COPY seed/data.json seed/data.json
 RUN uv sync --no-dev
 
 RUN useradd --system --uid 10001 vendoriq && chown -R vendoriq /app
