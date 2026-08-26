@@ -20,7 +20,7 @@ TEST_DB_URL ?= postgresql+psycopg://vendoriq:vendoriq@localhost:5432/vendoriq_te
 API_PORT  ?= 8000
 WEB_PORT  ?= 5173
 
-.PHONY: help setup db-up migrate seed seed-demo purge-demo create-admin api web worker test e2e \
+.PHONY: help setup db-up migrate seed seed-demo seed-form purge-demo create-admin api web worker test e2e \
 	lint format screenshots openapi-validate up prod-up prod-down prod-logs backup restore clean
 
 # Compose invocations. The production stack is the base file *plus* the overlay that turns
@@ -44,6 +44,9 @@ migrate: ## Apply migrations to the app and the test database
 
 seed: ## Load the real seed data (idempotent) — phase 1E
 	$(PY) -m vendoriq_api.seed load --real
+
+seed-form: ## Re-freeze seed/wesa_form.json from the WESA form workbook
+	$(PY) scripts/freeze-wesa-form.py
 
 seed-demo: ## Load the demo layer on top (is_demo=true) — phase 1E
 	$(PY) -m vendoriq_api.seed load --demo

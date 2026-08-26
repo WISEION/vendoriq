@@ -12,7 +12,7 @@ import json
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import TypedDict, cast
+from typing import Any, TypedDict, cast
 
 from ..config import REPO_ROOT
 
@@ -21,6 +21,8 @@ DATA_JSON_PATH = SEED_DIR / "data.json"
 
 #: Named once so every writer stamps the same origin (README's "provenance" rule).
 DATA_JSON_SOURCE_REF = "seed/data.json (Rev4 workbook TQS2026006)"
+WESA_FORM_PATH = SEED_DIR / "wesa_form.json"
+WESA_FORM_SOURCE_REF = "seed/fixtures/98dfa150-WESA_Prekvalifikasiya_Muraciet_Formasi.xlsx"
 
 
 class HistoryEntry(TypedDict, total=False):
@@ -152,3 +154,22 @@ def parse_date(text: str | None) -> date | None:
     if not stripped or stripped.casefold() == "müddətsiz":
         return None
     return date.fromisoformat(stripped)
+
+
+def load_wesa_form(path: Path = WESA_FORM_PATH) -> tuple[str, dict[str, Any]]:
+    """Wesa's real application form: ``(voen, answers keyed by form code)``.
+
+    Frozen from the workbook by `scripts/freeze-wesa-form.py` so the API image needs neither
+    openpyxl nor a spreadsheet; `apps/api/tests/test_seed_form.py` re-parses the workbook and
+    asserts the two still agree.
+
+    Wesa is the only one of the 13 whose filled-in form Uni Ko still had. The other twelve
+    were scored from the Rev4 spreadsheet alone and genuinely have no form answers — which is
+    why the register shows their indicators from the frozen snapshot and their form empty
+    (ADR-021).
+    """
+    if not path.exists():  # pragma: no cover - only a build that forgot to copy the file
+        return "", {}
+    document = json.loads(path.read_text(encoding="utf-8"))
+    return str(document["voen"]), cast(dict[str, Any], document["answers"])
+

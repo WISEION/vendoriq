@@ -10,7 +10,9 @@ this file's isolation.
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -38,6 +40,7 @@ from vendoriq_api.seed import real as real_seed
 from vendoriq_api.seed.common import PREQUALIFYING_CLASSES
 from vendoriq_api.seed.data import load_seed_data
 from vendoriq_api.seed.errors import SeedError
+from vendoriq_api.services import observations as observations_service
 from vendoriq_api.services.accounts import STAFF_ACCOUNTS, VENDOR_ACCOUNTS
 from vendoriq_scoring import ScoreResult
 
@@ -48,6 +51,14 @@ _DATA = load_seed_data()
 #: stored as the application's `raw_snapshot` — *not* as vendor field observations, which are
 #: the form's own namespace and mean something else under the same codes (ADR-021).
 _RAW_INDICATORS_PER_VENDOR = 24
+#: Answers in `seed/wesa_form.json` — Wesa's real application form, the only one there is.
+_WESA_FORM_ANSWERS = len(
+    json.loads(
+        (Path(__file__).resolve().parents[3] / "seed" / "wesa_form.json").read_text(
+            encoding="utf-8"
+        )
+    )["answers"]
+)
 _SUPPLIER_CRITERIA_COUNT = 23
 
 
@@ -72,9 +83,11 @@ def test_load_real_loads_every_documented_entity(uow: UnitOfWork, settings: Sett
     assert summary.project_created is True
     assert summary.cycle_created is True
     assert summary.applications_created == 13
-    # No field observations: Uni Ko never collected these vendors' form answers, they were
-    # scored from a spreadsheet. The indicators are on the applications, asserted below.
-    assert summary.observations_created == 0
+    # Field observations are *form* answers, and Uni Ko had exactly one filled-in form:
+    # Wesa's (ADR-023). The other twelve were scored from the Rev4 spreadsheet alone, so
+    # their forms are genuinely empty. Their Rev4 indicators live on the applications
+    # instead, asserted below.
+    assert summary.observations_created == _WESA_FORM_ANSWERS
 
     session = uow.session
     # 13 real vendors, plus the one `vendor.new@vendoriq.test` placeholder that
@@ -85,7 +98,7 @@ def test_load_real_loads_every_documented_entity(uow: UnitOfWork, settings: Sett
     assert _count(session, Category) == 15
     assert _count(session, ScoringModel) == 2
     assert _count(session, Application) == 13
-    assert _count(session, FieldObservation) == 0
+    assert _count(session, FieldObservation) == _WESA_FORM_ANSWERS
     snapshots = [
         application.raw_snapshot
         for application in session.scalars(select(Application))
@@ -521,13 +534,20 @@ def test_wesa_and_shield_carry_the_fullest_real_records(
     assert snapshot["B.1"] == 5189111  # avg annual turnover (3y), from the workbook
     assert snapshot["E.1"] == 80  # permanent staff
 
-    # And *not* as field observations. Those are the application form's namespace, where
-    # `A.1` is "Full legal name" rather than "Construction licence" — writing the workbook's
-    # criterion codes into it made the portal show Wesa's legal name as `3` (ADR-021).
-    assert (
-        session.scalars(select(FieldObservation).where(FieldObservation.vendor_id == wesa.id)).all()
-        == []
-    )
+    # The form answers are a *separate* record in a separate namespace, and Wesa is the one
+    # vendor with both. `A.1` in the profile is the company's name; `A.1` in the snapshot is
+    # its construction-licence score. Writing one into the other made the portal show Wesa's
+    # legal name as `3` (ADR-021); having both, correctly, is what lets them be compared at
+    # all (`test_seed_form.py`).
+    profile = observations_service.current_profile(session, wesa.id)
+    assert len(profile) == _WESA_FORM_ANSWERS
+    assert profile["A.1"] == "VVESA MMC"
+    assert snapshot["A.1"] == 3
+
+    # Shield was scored from the spreadsheet alone, so its form is empty and stays empty.
+    shield = session.scalar(select(Vendor).where(Vendor.legal_name.ilike("%shield%")))
+    assert shield is not None
+    assert observations_service.current_profile(session, shield.id) == {}
 
 
 def test_vendors_with_no_submission_still_score_one_via_c3_not_a2(

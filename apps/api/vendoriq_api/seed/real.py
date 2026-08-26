@@ -58,11 +58,13 @@ from .common import (
 )
 from .data import (
     DATA_JSON_SOURCE_REF,
+    WESA_FORM_SOURCE_REF,
     CategoryLabel,
     VendorRow,
     load_seed_data,
     parse_date,
     parse_int,
+    load_wesa_form,
     parse_voen,
 )
 from .errors import SeedError
@@ -99,6 +101,8 @@ def load_real(uow: UnitOfWork, *, settings: Settings) -> RealSummary:
 
     model = load_model("sub-4")
     vendor_by_seed_id: dict[str, Vendor] = {}
+    wesa_voen, wesa_answers = load_wesa_form()
+
     for row in data.vendors:
         vendor, created = get_or_create_vendor(
             uow,
@@ -138,6 +142,20 @@ def load_real(uow: UnitOfWork, *, settings: Settings) -> RealSummary:
         # (evaluation, market intelligence, the vendor register) already prefers to find
         # them. Uni Ko never collected these vendors' form answers; they were scored from a
         # spreadsheet, so the form genuinely has no answers and stays empty (brief §1.10).
+
+        # Wesa's real application form, the one vendor whose filled-in form Uni Ko still had.
+        # These *are* form-coded answers (spec Appendix A), so unlike the Rev4 raw indicators
+        # they belong in the observation store, and loading them is what makes the vendor
+        # portal show a real application rather than an empty one (ADR-021, ADR-023).
+        if wesa_voen and parse_voen(row.get("voen")) == wesa_voen:
+            summary.observations_created += ensure_observations(
+                uow,
+                vendor,
+                wesa_answers,
+                source=ObservationSource.EXCEL,
+                source_ref=WESA_FORM_SOURCE_REF,
+                at=observed_at(row.get("updated")),
+            )
 
         # Fail loudly before any application row is written (brief §1.10).
         _assert_matches_sheet(row, score(model, row["raw"]))

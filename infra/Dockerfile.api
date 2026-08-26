@@ -36,6 +36,9 @@ COPY docs/openapi.yaml docs/openapi.yaml
 # copied: the Excel workbooks under seed/fixtures/ are test fixtures, and the mocked ERP
 # responses live inside the adapters package.
 COPY seed/data.json seed/data.json
+# Wesa's real application form, already parsed (scripts/freeze-wesa-form.py). The workbook and
+# openpyxl stay out of the image; without this file the vendor portal has no answers to show.
+COPY seed/wesa_form.json seed/wesa_form.json
 RUN uv sync --frozen --no-dev
 
 RUN useradd --system --uid 10001 vendoriq && chown -R vendoriq /app

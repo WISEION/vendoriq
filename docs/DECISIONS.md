@@ -728,3 +728,57 @@ logout (migration `0005`).
 **Consequences.** `is_active` keeps its meaning — it revokes every session a user has at once
 — and logout revokes exactly one. Both are now true statements rather than one standing in
 for the other.
+
+## ADR-023 — Wesa's real application form is loaded, and it validates the whole bridge
+
+**Context.** ADR-021 stopped the seed writing criterion-coded indicators into the form-answer
+store and concluded: "the 13 real vendors now have no form answers at all, and that is the
+truth: Uni Ko scored them from a spreadsheet and never collected an Appendix A form from any
+of them."
+
+**That conclusion was wrong for one vendor, and I should have checked before writing it.**
+`seed/fixtures/` contains `98dfa150-WESA_Prekvalifikasiya_Muraciet_Formasi.xlsx` — Wesa's
+filled-in application form. `packages/excel_import` has parsed it since phase 1 and
+`test_form_wesa.py` asserts its contents in detail. The seed simply never loaded it.
+
+**What loading it showed.** Wesa is the only vendor in the system where two independent
+records describe the same company: its own form, and the Rev4 scoring sheet. Running the
+first through `derive_raw` and comparing with the second is an end-to-end check of the entire
+bridge — Appendix A codes in, criterion codes out — against real data. Nobody had run it.
+
+| | form → `derive_raw` | Rev4 sheet |
+|---|---|---|
+| B.1 avg turnover | 5,189,111.38 | 5,189,111 |
+| C.1 similar projects | 10 | 10 |
+| C.2 largest project | 6,140,000 | 6,140,000 |
+| C.3 ongoing | 2 | 2 |
+| E.1 permanent staff | 80 | 80 |
+| G.2 references | 8 | 8 |
+| **E.2 engineers** | **8** | **10** |
+| A.3, D.1–D.3, E.4, F.3 | *absent* | present |
+
+Seventeen of eighteen agree to the manat. The six absent ones are exactly the judgement
+criteria `derive.py` says the officer scores against evidence — so the map's own account of
+itself is accurate too.
+
+**E.2 is the one disagreement, and it is ADR-008's open question with data at last.** ADR-008
+ruled that "engineers" sums `E.4`…`E.8` and excludes `E.9`, the technicians and foremen, and
+recorded honestly that the Rev4 fixture could not confirm it because the seed never went
+through `derive_raw`. It does now: the form's rows sum to **8**, the sheet says **10**, and no
+single row explains the gap (`E.9` is 4, not 2). Uni Ko counted two engineers this system does
+not. It is **score-neutral** — `E.2` scores identically at 8 and 10, so Wesa's 90.3 and its
+class A are unaffected — and it is left as a recorded discrepancy rather than a rule to
+re-derive, because a difference between two human records is exactly the thing this product
+exists to surface.
+
+**Ruling.** The real seed loads Wesa's form as field observations, source `excel`,
+`source_ref` the workbook. Frozen to `seed/wesa_form.json` by `scripts/freeze-wesa-form.py`
+(`make seed-form`) so the API image needs neither openpyxl nor a spreadsheet; a test re-parses
+the workbook and refuses a stale copy. The seed still stores the *sheet's* `E.2`, because the
+sheet is what the commission decided on.
+
+**Consequences.** Wesa's application is 98.9 % complete, so the vendor portal demonstrates a
+real filled form instead of an empty one — with real data, which is better than the demo
+application ADR-021 proposed and better than fabricating answers for a vendor. The other
+twelve keep empty forms, correctly. And ADR-021's sentence about all thirteen should be read
+as it now stands: twelve were scored from a spreadsheet alone; the thirteenth was not.
