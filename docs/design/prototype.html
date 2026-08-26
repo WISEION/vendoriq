@@ -1,0 +1,834 @@
+<title>VendorIQ</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ink:#0E1A2B; --ink-2:#182A44; --paper:#F4F6F9; --card:#FFFFFF; --text:#12203A; --muted:#5B6B82; --line:#DCE2EA; --line-2:#EDF0F4;
+  --accent:#2451B5; --accent-ink:#FFFFFF; --accent-soft:#E6ECFA;
+  --good:#1B7F4E; --good-soft:#E3F3EA; --warn:#B7791F; --warn-soft:#FBF1DC; --crit:#B93A2F; --crit-soft:#F9E5E2;
+  --cA:#1B7F4E; --cB:#4C8C2B; --cC:#B7791F; --cD:#C05A24; --cF:#B93A2F; --cKO:#7A2F28; --cNA:#8A96A8; --doc:#6D3FC4;
+  --rail-text:#C9D3E3; --rail-active:#FFFFFF; --rail-hover:rgba(255,255,255,.06);
+  --shadow:0 1px 2px rgba(14,26,43,.06),0 4px 14px rgba(14,26,43,.05);
+  --fh:'Archivo',system-ui,sans-serif; --fb:'Public Sans',system-ui,sans-serif; --fm:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --ink:#0A1220; --ink-2:#121F33; --paper:#0F1826; --card:#172236; --text:#E6ECF5; --muted:#94A3B8; --line:#2A3A52; --line-2:#1F2D42;
+  --accent:#7A9BEF; --accent-ink:#0A1220; --accent-soft:#1E2E52;
+  --good:#4CC486; --good-soft:#153327; --warn:#E0B052; --warn-soft:#3A2E12; --crit:#F08A7D; --crit-soft:#3E1F1B;
+  --cA:#4CC486; --cB:#8FCB5A; --cC:#E0B052; --cD:#E58A5A; --cF:#F08A7D; --cKO:#C86A5E; --cNA:#7A8799; --doc:#B9A0F0;
+  --rail-text:#AFBBCC; --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.25);
+}}
+:root[data-theme="dark"]{
+  --ink:#0A1220; --ink-2:#121F33; --paper:#0F1826; --card:#172236; --text:#E6ECF5; --muted:#94A3B8; --line:#2A3A52; --line-2:#1F2D42;
+  --accent:#7A9BEF; --accent-ink:#0A1220; --accent-soft:#1E2E52;
+  --good:#4CC486; --good-soft:#153327; --warn:#E0B052; --warn-soft:#3A2E12; --crit:#F08A7D; --crit-soft:#3E1F1B;
+  --cA:#4CC486; --cB:#8FCB5A; --cC:#E0B052; --cD:#E58A5A; --cF:#F08A7D; --cKO:#C86A5E; --cNA:#7A8799; --doc:#B9A0F0;
+  --rail-text:#AFBBCC; --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.25);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--paper);color:var(--text);font-family:var(--fb);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{font-family:var(--fh);margin:0;text-wrap:balance;letter-spacing:-.01em}
+h1{font-size:22px;font-weight:700}
+h2{font-size:17px;font-weight:600}
+h3{font-size:14px;font-weight:600}
+p{margin:0}
+a{color:var(--accent)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+.mono{font-family:var(--fm);font-variant-numeric:tabular-nums}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.hide{display:none!important}
+
+/* ---------- shell ---------- */
+.app{display:grid;grid-template-columns:236px 1fr;min-height:100vh}
+.rail{background:var(--ink);color:var(--rail-text);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.brand{padding:18px 18px 14px;border-bottom:1px solid rgba(255,255,255,.08)}
+.brand .name{font-family:var(--fh);font-weight:700;font-size:18px;color:#fff;letter-spacing:-.02em}
+.brand .org{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--rail-text);opacity:.8;margin-top:2px}
+.rail .section{padding:14px 18px 4px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.6}
+.rail nav{display:flex;flex-direction:column;gap:2px;padding:4px 10px}
+.rail nav button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:0;color:var(--rail-text);padding:9px 10px;border-radius:6px;font-size:13.5px;font-weight:500}
+.rail nav button:hover{background:var(--rail-hover);color:#fff}
+.rail nav button.active{background:rgba(255,255,255,.12);color:var(--rail-active)}
+.rail nav button svg{width:16px;height:16px;flex:none;opacity:.85}
+.rail nav button .cnt{margin-left:auto;font-family:var(--fm);font-size:11px;background:rgba(255,255,255,.12);padding:1px 7px;border-radius:10px}
+.rail .foot{margin-top:auto;padding:14px 18px;font-size:11.5px;opacity:.7;border-top:1px solid rgba(255,255,255,.08);line-height:1.5}
+.main{min-width:0}
+.topbar{display:flex;align-items:center;gap:14px;padding:12px 28px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.topbar h1{font-size:18px}
+.topbar .grow{flex:1}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--paper)}
+.seg button{border:0;background:none;padding:6px 12px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.seg button.active{background:var(--accent);color:var(--accent-ink)}
+.seg button:focus-visible,.btn:focus-visible,.rail nav button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.content{padding:24px 28px 60px;max-width:1440px}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px}
+.page-head p{max-width:64ch;color:var(--muted);margin-top:4px}
+
+/* ---------- components ---------- */
+.grid{display:grid;gap:16px}
+.g4{grid-template-columns:repeat(4,1fr)} .g3{grid-template-columns:repeat(3,1fr)} .g2{grid-template-columns:repeat(2,1fr)}
+.g23{grid-template-columns:2fr 1fr} .g32{grid-template-columns:3fr 2fr}
+@media (max-width:1100px){.g4{grid-template-columns:repeat(2,1fr)} .g3,.g23,.g32{grid-template-columns:1fr}}
+@media (max-width:820px){.app{grid-template-columns:1fr}.rail{position:relative;height:auto}.g2,.g4{grid-template-columns:1fr}.content{padding:16px}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow)}
+.card .hd{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line-2)}
+.card .bd{padding:16px 18px}
+.card .bd.tight{padding:0}
+.kpi{padding:16px 18px}
+.kpi .lbl{font-size:12px;color:var(--muted);font-weight:500}
+.kpi .val{font-family:var(--fh);font-size:30px;font-weight:700;line-height:1.1;margin-top:4px;font-variant-numeric:tabular-nums}
+.kpi .sub{font-size:12px;color:var(--muted);margin-top:6px}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);padding:7px 12px;border-radius:6px;font-size:13px;font-weight:600;color:var(--text)}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.good{background:var(--good);border-color:var(--good);color:#fff}
+.btn.crit{background:var(--crit);border-color:var(--crit);color:#fff}
+.btn.sm{padding:4px 9px;font-size:12px}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.pill.good{background:var(--good-soft);color:var(--good)} .pill.warn{background:var(--warn-soft);color:var(--warn)} .pill.crit{background:var(--crit-soft);color:var(--crit)}
+.pill.neutral{background:var(--line-2);color:var(--muted)} .pill.accent{background:var(--accent-soft);color:var(--accent)}
+.cls{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:22px;padding:0 7px;border-radius:5px;font-family:var(--fm);font-weight:500;font-size:12px;color:#fff}
+.cls.A{background:var(--cA)} .cls.B{background:var(--cB)} .cls.C{background:var(--cC)} .cls.D{background:var(--cD)} .cls.F{background:var(--cF)} .cls.KO{background:var(--cKO)} .cls.NA{background:var(--cNA)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tbody tr.row:hover{background:var(--paper);cursor:pointer}
+td.r,th.r{text-align:right}
+.tblwrap{overflow-x:auto}
+.bar{height:6px;background:var(--line-2);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:3px}
+.bar.good i{background:var(--good)} .bar.warn i{background:var(--warn)} .bar.crit i{background:var(--crit)}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{font-size:11px;padding:2px 7px;border-radius:4px;background:var(--line-2);color:var(--text)}
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input[type=text],input[type=number],input[type=date],select,textarea{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:7px 10px;font-size:13px;min-width:0}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:0;border-color:var(--accent)}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:12px;font-weight:600;color:var(--muted)}
+.stat-row{display:flex;gap:24px;flex-wrap:wrap}
+.stat-row div b{font-family:var(--fh);font-size:20px;display:block}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);padding:0 18px;overflow-x:auto}
+.tabs button{border:0;background:none;padding:12px 12px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.tabs button.active{color:var(--accent);border-color:var(--accent)}
+.alert{padding:12px 14px;border-radius:6px;font-size:13px;border:1px solid}
+.alert.warn{background:var(--warn-soft);border-color:var(--warn);color:var(--text)}
+.alert.crit{background:var(--crit-soft);border-color:var(--crit);color:var(--text)}
+.alert.good{background:var(--good-soft);border-color:var(--good);color:var(--text)}
+.alert.info{background:var(--accent-soft);border-color:var(--accent);color:var(--text)}
+.stepper{display:flex;gap:0;counter-reset:s}
+.stepper div{flex:1;position:relative;padding:8px 8px 8px 0;font-size:12px;color:var(--muted)}
+.stepper div::before{content:'';display:block;height:4px;border-radius:2px;background:var(--line);margin-bottom:8px}
+.stepper div.done::before{background:var(--good)} .stepper div.cur::before{background:var(--accent)}
+.stepper div.cur{color:var(--text);font-weight:600}
+.heat td{text-align:center;font-family:var(--fm);font-size:12px}
+.heat td.h0{background:transparent;color:var(--muted)} .heat td.h1{background:color-mix(in srgb,var(--accent) 12%,transparent)} .heat td.h2{background:color-mix(in srgb,var(--accent) 28%,transparent)} .heat td.h3{background:color-mix(in srgb,var(--accent) 48%,transparent);color:#fff}
+.gauge{display:flex;align-items:center;gap:14px}
+.gauge .ring{width:74px;height:74px;border-radius:50%;display:grid;place-items:center;font-family:var(--fh);font-weight:700;font-size:20px;position:relative}
+.gauge .ring::after{content:'';position:absolute;inset:7px;border-radius:50%;background:var(--card)}
+.gauge .ring span{position:relative;z-index:1}
+.score-row{display:grid;grid-template-columns:44px 1fr 130px 80px 70px;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line-2);font-size:13px}
+.score-row:last-child{border-bottom:0}
+.score-row input{width:100%;padding:4px 8px}
+.score-row .grp{grid-column:1/-1;padding-top:12px;font-family:var(--fh);font-weight:600;font-size:13px}
+.formsec{display:grid;grid-template-columns:70px 1fr 140px 220px 70px;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line-2);font-size:13px}
+.formsec.head{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.formsec .sub{grid-column:1/-1;padding-top:10px;font-weight:600;font-family:var(--fh)}
+.formsec input,.formsec select{width:100%}
+.req{color:var(--crit);font-weight:700}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--ink);color:#fff;padding:10px 14px;border-radius:6px;font-size:13px;box-shadow:var(--shadow);opacity:0;transform:translateY(6px);transition:.2s;z-index:20;pointer-events:none}
+.toast.show{opacity:1;transform:none}
+.src{font-family:var(--fm);font-size:11px;color:var(--muted)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;font-size:13px}
+.two dt{color:var(--muted);font-size:12px} .two dd{margin:0 0 8px}
+.bars{display:flex;flex-direction:column;gap:8px}
+.bars .b{display:grid;grid-template-columns:150px 1fr 48px;gap:10px;align-items:center;font-size:12.5px}
+.timeline{display:flex;flex-direction:column;gap:10px;font-size:12.5px}
+.timeline div{display:grid;grid-template-columns:82px 1fr;gap:10px}
+.timeline .d{font-family:var(--fm);color:var(--muted);font-size:11.5px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+<div class="app">
+  <aside class="rail">
+    <div class="brand"><div class="name">VendorIQ</div><div class="org" id="brandOrg">Uni Ko QSC · Kommersiya</div></div>
+    <div id="railNav"></div>
+    <div class="foot" id="railFoot"></div>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <h1 id="pageTitle">—</h1>
+      <div class="grow"></div>
+      <div class="seg" id="roleSeg">
+        <button data-role="manager" class="active" data-t="role_manager">Manager</button>
+        <button data-role="vendor" data-t="role_vendor">Vendor portal</button>
+      </div>
+      <div class="seg" id="langSeg">
+        <button data-lang="az" class="active">AZ</button>
+        <button data-lang="en">EN</button>
+      </div>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =====================================================================
+   DATA
+   ===================================================================== */
+const VENDORS = [{"id": "V01", "name": "İbrahimovs Group MMC", "voen": 1804034391, "regYear": 2018, "address": "AZ1040 Bakı şəh., Sabunçu ray., Bakıxanov ŞTQ, Səmədbəy Mehmandarov, ev 20", "contact": "Emin Həsənov", "position": "İcraçı direktor", "phone": "(+994 51) 201 90 90", "email": "emin.hasanov@ibrahimovs.group", "website": "ibrahimovs.group", "staff": 10, "engineers": 1, "raw": {"A.1": 3, "A.2": 9, "A.3": 3, "A.4": 3, "B.1": 385937, "B.2": 100000, "B.3": 3, "B.4": 0, "C.1": 2, "C.2": 242000, "C.3": 3, "C.4": 0, "D.1": 2, "D.2": 0, "D.3": 0, "E.1": 10, "E.2": 1, "E.3": 2, "E.4": 3, "F.1": 3, "F.2": 0, "F.3": 3, "G.1": 0, "G.2": 4}, "sheetTotal": 39.1, "sheetKO": "Keçdi ✓", "sheetDecision": "F — RƏDD", "cats": ["finishing"], "status": "rejected", "source": "excel", "updated": "2026-04-27", "region": "Bakı", "type": "sub", "docs": {}, "history": [{"cycle": "TQS2026006 Rev1", "date": "2026-04-24", "total": null}, {"cycle": "TQS2026006 Rev4", "date": "2026-04-28", "total": 39.1}]}, {"id": "V02", "name": "Snek Group MMC", "voen": null, "regYear": null, "address": null, "contact": null, "position": null, "phone": null, "email": null, "website": null, "staff": 0, "engineers": 0, "raw": {"A.1": null, "A.2": null, "A.3": null, "A.4": null, "B.1": null, "B.2": null, "B.3": null, "B.4": null, "C.1": null, "C.2": null, "C.3": null, "C.4": null, "D.1": null, "D.2": null, "D.3": null, "E.1": null, "E.2": null, "E.3": null, "E.4": null, "F.1": null, "F.2": null, "F.3": null, "G.1": null, "G.2": null}, "sheetTotal": 1, "sheetKO": "RƏDD ✗", "sheetDecision": "KO — RƏDD", "cats": ["mep"], "status": "incomplete", "source": "excel", "updated": "2026-04-24", "region": "Bakı", "type": "sub", "docs": {}, "history": [{"cycle": "TQS2026006 Rev1", "date": "2026-04-24", "total": null}, {"cycle": "TQS2026006 Rev4", "date": "2026-04-28", "total": 1}]}, {"id": "V03", "name": "Akabe İnşaat", "voen": null, "regYear": null, "address": null, "contact": null, "position": null, "phone": null, "email": null, "website": null, "staff": 0, "engineers": 0, "raw": {"A.1": null, "A.2": null, "A.3": null, "A.4": null, "B.1": null, "B.2": null, "B.3": null, "B.4": null, "C.1": null, "C.2": null, "C.3": null, "C.4": null, "D.1": null, "D.2": null, "D.3": null, "E.1": null, "E.2": null, "E.3": null, "E.4": null, "F.1": null, "F.2": null, "F.3": null, "G.1": null, "G.2": null}, "sheetTotal": 1, "sheetKO": "RƏDD ✗", "sheetDecision": "KO — RƏDD", "cats": ["concrete", "general"], "status": "incomplete", "source": "excel", "updated": "2026-04-22", "region": "Bakı", "type": "sub", "docs": {}, "history": [{"cycle": "TQS2026006 Rev1", "date": "2026-04-24", "total": null}, {"cycle": "TQS2026006 Rev4", "date": "2026-04-28", "total": 1}]}, {"id": "V04", "name": "Bianco Group MMC", "voen": null, "regYear": null, "address": null, "contact": null, "position": null, "phone": null, "email": null, "website": null, "staff": 0, "engineers": 0, "raw": {"A.1": null, "A.2": null, "A.3": null, "A.4": null, "B.1": null, "B.2": null, "B.3": null, "B.4": null, "C.1": null, "C.2": null, "C.3": null, "C.4": null, "D.1": null, "D.2": null, "D.3": null, "E.1": null, "E.2": null, "E.3": null, "E.4": null, "F.1": null, "F.2": null, "F.3": null, "G.1": null, "G.2": null}, "sheetTotal": 1, "sheetKO": "RƏDD ✗", "sheetDecision": "KO — RƏDD", "cats": ["finishing"], "status": "incomplete", "source": "excel", "updated": "2026-04-23", "region": "Bakı", "type": "sub", "docs": {}, "history": [{"cycle": "TQS2026006 Rev1", "date": "2026-04-24", "total": null}, {"cycle": "TQS2026006 Rev4", "date": "2026-04-28", "total": 1}]}, {"id": "V05", "name": "VVESA MMC (Wesa)", "voen": 1003915341, "regYear": 2015, "address": "Bakı şəh., Nəsimi ray., qulu Quliyev, ev 60, mənzil 4", "contact": "Həbib Atakişiyev", "position": "CEO", "phone": "(+994 50) 336 70 02", "email": "habib.atakisiyev@wesa.az", "website": "wesa.az", "staff": 80, "engineers": 10, "raw": {"A.1": 3, "A.2": 11, "A.3": 3, "A.4": 3, "B.1": 5189111, "B.2": 1208443, "B.3": 3, "B.4": 3, "C.1": 10, "C.2": 6140000, "C.3": 2, "C.4": 3, "D.1": 3, "D.2": 3, "D.3": 3, "E.1": 80, "E.2": 10, "E.3": 3, "E.4": 3, "F.1": 3, "F.2": 3, "F.3": 3, "G.1": 3, "G.2": 8}, "sheetTotal": 90.3, "sheetKO": "Keçdi ✓", "sheetDecision": "A — Əla (DƏVƏT)", "cats": ["facade", "steel", "industrial"], "status": "prequalified", "source": "form", "updated": "2026-04-28", "region": "Bakı", "type": "sub", "docs": {"A-05": "2026-07-28", "C-02": "2026-12-10", "A-04": null, "G-01": "2026-11-30"}, "history": [{"cycle": "TQS2026006 Rev1", "date": "2026-04-24", "total": null}, {"cycle": "TQS2026006 Rev4", "date": "2026-04-28", "total": 90.3}], "detail": {"turnover": [7678681.31, 5275759.15, 2612893.68], "equity": 1208443.06, "currentAssets": 5029957.95, "currentLiab": 4280808.37, "creditLine": 1200000, "banks": "Yapıkredi, Kapital Bank, Ziraat", "auditor": "Financial Reporting Center MMC", "iso9001": "I1731076497Q / 10.12.2026", "license": "EL-220/2020", "projects": [["Nizami Mall", "Delta MMC", 2023, 2024, 3015079.84, "facade"], ["Park Akademiya", "Avanqard MMC", 2024, 2025, 1816000, "facade"], ["Central Towers", "SR Construction", 2024, 2025, 3352934.8, "facade"], ["Ravy Tower (Baku Bay Tower)", "Prokon MMC", 2022, 2023, 3430153.4, "facade"], ["Heat Exchanger and Air Coolers", "SOCAR Downstream", 2024, 2025, 6140000, "industrial"], ["Flue Gas Stack HAOR", "Prokon MMC", 2023, 2024, 1500000, "steel"], ["Sevinc AVM", "Xəzər-2016 Construction", 2022, 2023, 1000000, "facade"], ["Hidravlik test qurğusu", "SOCAR Downstream", 2024, 2025, 948000, "industrial"], ["Steel Structure Fabrication", "Delta LTD", 2023, 2024, 640000, "steel"], ["DTX Elevator Building", "Caspian Road MMC", 2022, 2023, 491213, "steel"]], "ongoing": [["Air Cooler", "SOCAR Downstream", 2025, 2026, 95, 6120000], ["The Ritz-Carlton Fasad", "Pasha Development MMC", 2025, 2026, 85, 211000]]}}, {"id": "V06", "name": "Hasan Holding", "voen": 1700116471, "regYear": 2004, "address": "BAKI ŞƏHƏRİ, SƏBAİL RAYONU LERMONTOV 109", "contact": "Səfiyev Vüqar Vəli oğlu", "position": "İcraçı direktor", "phone": "(077) 477 17 77", "email": "hasanholding.baki@gmail.com", "website": "hasanholding.az", "staff": 65, "engineers": 14, "raw": {"A.1": 3, "A.2": 22, "A.3": 3, "A.4": 3, "B.1": 2251677, "B.2": 644138, "B.3": 3, "B.4": 3, "C.1": 9, "C.2": 7294722, "C.3": 4, "C.4": 0, "D.1": 3, "D.2": 3, "D.3": 3, "E.1": 65, "E.2": 14, "E.3": 3, "E.4": 3, "F.1": 3, "F.2": 0, "F.3": 3, "G.1": 0, "G.2": 3}, "sheetTotal": 76.2, "sheetKO": "Keçdi ✓", "sheetDecision": "C — Şərti DƏVƏT", "cats": ["general", "concrete"], "status": "prequalified", "source": "excel", "updated": "2026-04-27", "region": "Bakı", "type": "sub", "docs": {"A-05": "2026-07-01"}, "history": [{"cycle": "TQS2026006 Rev1", "date": "2026-04-24", "total": null}, {"cycle": "TQS2026006 Rev4", "date": "2026-04-28", "total": 76.2}]}, {"id": "V07", "name": "Ranuni MMC (Parket House)", "voen": 2004765571, "regYear": 2017, "address": "Abşeron ray., Aşağı Güzdək Qəsəbəsi., H.Cavadov, Ev 31", "contact": "Elşad İbrahimov", "position": "Mühəndis", "phone": "(077) 366 61 33", "email": "info@parkethouse.az", "website": "Yoxdur", "staff": 10, "engineers": 1, "raw": {"A.1": 0, "A.2": 9, "A.3": 3, "A.4": 3, "B.1": 371786, "B.2": 297384, "B.3": 3, "B.4": 0, "C.1": 8, "C.2": 0, "C.3": 3, "C.4": 0, "D.1": 3, "D.2": 3, "D.3": 0, "E.1": 10, "E.2": 1, "E.3": 0, "E.4": 0, "F.1": 3, "F.2": 0, "F.3": 3, "G.1": 3, "G.2": 0}, "sheetTotal": 38.3, "sheetKO": "RƏDD ✗", "sheetDecision": "KO — RƏDD", "cats": ["flooring", "finishing"], "status": "rejected", "source": "excel", "updated": "2026-04-26", "region": "Abşeron", "type": "sub", "docs": {}, "history": [{"cycle": "TQS2026006 Rev1", "date": "2026-04-24", "total": null}, {"cycle": "TQS2026006 Rev4", "date": "2026-04-28", "total": 38.3}]}, {"id": "V08", "name": "Ray Group", "voen": 2004824871, "regYear": 2018, "address": "AZ1025 Bakı ş,Xətai ray, Nəcəfqulu Rəfiyev ev 11A", "contact": "Yılmaz Apa", "position": "Direktor", "phone": "(050) 433 23 50", "email": "raygroupmmctikintisirketi18@gmail.com", "website": "Yoxdur", "staff": 0, "engineers": 2, "raw": {"A.1": 0, "A.2": 6, "A.3": 3, "A.4": 3, "B.1": 900000, "B.2": 0, "B.3": 3, "B.4": 0, "C.1": 5, "C.2": 0, "C.3": 0, "C.4": 0, "D.1": 3, "D.2": 0, "D.3": 1, "E.1": 0, "E.2": 2, "E.3": 0, "E.4": 3, "F.1": 0, "F.2": 0, "F.3": 3, "G.1": 0, "G.2": 0}, "sheetTotal": 32.3, "sheetKO": "RƏDD ✗", "sheetDecision": "KO — RƏDD", "cats": ["general"], "status": "rejected", "source": "excel", "updated": "2026-04-25", "region": "Bakı", "type": "sub", "docs": {}, "history": [{"cycle": "TQS2026006 Rev1", "date": "2026-04-24", "total": null}, {"cycle": "TQS2026006 Rev4", "date": "2026-04-28", "total": 32.3}]}, {"id": "V09", "name": "Shield", "voen": 2002138471, "regYear": 2011, "address": "Bakı şəh., Xəzər ray., Buzovna qəs., Buzovna - Maştağa yolu, 332B", "contact": "Tabit Alızadə, Gülay Vəlizadə", "position": "Satış müdiri", "phone": "(070) 600 08 22", "email": "a.tabit@shield.az", "website": "shield.az", "staff": 60, "engineers": 25, "raw": {"A.1": 3, "A.2": 15, "A.3": 3, "A.4": 3, "B.1": 8606630, "B.2": 2752153, "B.3": 3, "B.4": 3, "C.1": 15, "C.2": 3369100, "C.3": 6, "C.4": 3, "D.1": 3, "D.2": 3, "D.3": 3, "E.1": 60, "E.2": 25, "E.3": 3, "E.4": 3, "F.1": 3, "F.2": 3, "F.3": 3, "G.1": 3, "G.2": 5}, "sheetTotal": 94.7, "sheetKO": "Keçdi ✓", "sheetDecision": "A — Əla (DƏVƏT)", "cats": ["facade", "m_glass"], "status": "prequalified", "source": "api", "updated": "2026-08-19", "region": "Bakı", "type": "sub", "docs": {"A-05": "2026-09-05", "C-02": "2027-03-01", "F-03": "2027-03-01", "G-01": "2026-10-15"}, "history": [{"cycle": "TQS2026006 Rev1", "date": "2026-04-24", "total": null}, {"cycle": "TQS2026006 Rev4", "date": "2026-04-28", "total": 94.7}]}, {"id": "V10", "name": "Arti Qrup MMC", "voen": 1801310241, "regYear": 2021, "address": "AZ1040, BAKI ŞƏHƏRİ SABUNÇU RAYONU, BAKIXANOV ŞTQ,\nMEHDİ HÜSEYN (BAKIXANOV QƏS.), ev 10, mənzil 10", "contact": "Çingiz Ağalarov", "position": "Layihə rəhbəri", "phone": "(050) 555 10 05", "email": "chingiz.aghalarov@artigroup.az", "website": "www.artigroup.az", "staff": 155, "engineers": 14, "raw": {"A.1": 3, "A.2": 6, "A.3": 3, "A.4": 3, "B.1": 13902200, "B.2": 2171710, "B.3": 3, "B.4": 3, "C.1": 12, "C.2": 30000000, "C.3": 2, "C.4": 0, "D.1": 3, "D.2": 3, "D.3": 3, "E.1": 155, "E.2": 14, "E.3": 3, "E.4": 3, "F.1": 3, "F.2": 0, "F.3": 3, "G.1": 3, "G.2": 0}, "sheetTotal": 84, "sheetKO": "Keçdi ✓", "sheetDecision": "B — Yaxşı (DƏVƏT)", "cats": ["general", "concrete", "finishing"], "status": "prequalified", "source": "excel", "updated": "2026-04-28", "region": "Bakı", "type": "sub", "docs": {"A-05": "2026-06-30", "G-01": "2027-01-01"}, "history": [{"cycle": "TQS2026006 Rev1", "date": "2026-04-24", "total": null}, {"cycle": "TQS2026006 Rev4", "date": "2026-04-28", "total": 84}]}, {"id": "V11", "name": "Gilan (Kila Qrup)", "voen": "1400915571 / 7200482051", "regYear": "2006 / 2016", "address": "Bakı şəh., Yasamal ray., Nəriman Nərimanov pr., ev 206 / Tərtər rayonu, Linanabad, ev 1, mənzil 1", "contact": "İlqar Ağayev / Tahirzadə Xəyalə", "position": "Kommersiya direktoru / Menecer", "phone": "(050 290 90 91 / (077 443 60 9)", "email": "ilgar.agayev@cmg.az / tahizadexeyale@kila-group.com", "website": "evoria.az / kila-group.com", "staff": 327, "engineers": 9, "raw": {"A.1": 3, "A.2": 10, "A.3": 3, "A.4": 3, "B.1": 49980801, "B.2": 45898367, "B.3": 3, "B.4": 2, "C.1": 3, "C.2": 946436, "C.3": 4, "C.4": 3, "D.1": 2, "D.2": 2, "D.3": 1, "E.1": 327, "E.2": 7, "E.3": 3, "E.4": 1, "F.1": 3, "F.2": 3, "F.3": 3, "G.1": 0, "G.2": 8}, "sheetTotal": 73, "sheetKO": "Keçdi ✓", "sheetDecision": "C — Şərti DƏVƏT", "cats": ["general", "mep", "electrical"], "status": "prequalified", "source": "api", "updated": "2026-08-21", "region": "Bakı / Tərtər", "type": "sub", "docs": {"A-05": "2026-08-30", "C-02": "2026-09-14", "F-04": "2027-05-01"}, "history": [{"cycle": "TQS2026006 Rev1", "date": "2026-04-24", "total": null}, {"cycle": "TQS2026006 Rev4", "date": "2026-04-28", "total": 73}]}, {"id": "V12", "name": "Golden ABA", "voen": null, "regYear": null, "address": null, "contact": null, "position": null, "phone": null, "email": null, "website": null, "staff": 0, "engineers": 0, "raw": {"A.1": null, "A.2": null, "A.3": null, "A.4": null, "B.1": null, "B.2": null, "B.3": null, "B.4": null, "C.1": null, "C.2": null, "C.3": null, "C.4": null, "D.1": null, "D.2": null, "D.3": null, "E.1": null, "E.2": null, "E.3": null, "E.4": null, "F.1": null, "F.2": null, "F.3": null, "G.1": null, "G.2": null}, "sheetTotal": 1, "sheetKO": "RƏDD ✗", "sheetDecision": "KO — RƏDD", "cats": ["landscape"], "status": "incomplete", "source": "excel", "updated": "2026-04-21", "region": "—", "type": "sub", "docs": {}, "history": [{"cycle": "TQS2026006 Rev1", "date": "2026-04-24", "total": null}, {"cycle": "TQS2026006 Rev4", "date": "2026-04-28", "total": 1}]}, {"id": "V13", "name": "İNPROCON MMC", "voen": 1701503521, "regYear": 2013, "address": "AZ 1021,Bakı şəh, \nSəbail ray, \nBadamdar ŞTQ, \nNürəddin Paşayev, \nev 12, m7", "contact": "Elnur Najafli", "position": "Baş direktor", "phone": "(+994 50) 275 28 48", "email": "elnur.najafli@inprocon.com.az", "website": "www.inprocon.eu ;\n www.inprocon.com.az", "staff": 41, "engineers": 13, "raw": {"A.1": 3, "A.2": 13, "A.3": 3, "A.4": 3, "B.1": 5890077, "B.2": 2115000, "B.3": 3, "B.4": 1, "C.1": 7, "C.2": 3400000, "C.3": 1, "C.4": 3, "D.1": 3, "D.2": 3, "D.3": 3, "E.1": 41, "E.2": 13, "E.3": 3, "E.4": 3, "F.1": 3, "F.2": 3, "F.3": 3, "G.1": 3, "G.2": 8}, "sheetTotal": 83.5, "sheetKO": "Keçdi ✓", "sheetDecision": "B — Yaxşı (DƏVƏT)", "cats": ["general", "mep", "steel"], "status": "prequalified", "source": "form", "updated": "2026-05-02", "region": "Bakı", "type": "sub", "docs": {"A-05": "2026-07-15", "C-02": "2027-08-01", "F-03": "2027-08-01", "G-01": "2026-12-20"}, "history": [{"cycle": "TQS2026006 Rev1", "date": "2026-04-24", "total": null}, {"cycle": "TQS2026006 Rev4", "date": "2026-04-28", "total": 83.5}]}];
+const DEMO_SUPPLIERS = [{"id": "S01", "name": "Caspian Steel Supply (demo)", "voen": "0000000001", "regYear": 2012, "cats": ["m_rebar"], "type": "sup", "status": "prequalified", "source": "api", "updated": "2026-08-20", "region": "Sumqayıt", "contact": "Demo əlaqə", "phone": "—", "email": "demo@example.az", "raw": {"A.1": 3, "A.2": 14, "A.3": 3, "A.4": 3, "B.1": 22000000, "B.2": 6500000, "B.3": 3, "B.4": 3, "C.1": 3, "C.2": 3, "C.3": 3, "C.4": 2, "D.1": 3, "D.2": 3, "D.3": 5, "E.1": 2, "E.2": 2, "E.3": 3, "F.1": 3, "F.2": 2, "F.3": 3, "G.1": 7, "G.2": 3}}, {"id": "S02", "name": "Baku Beton (demo)", "voen": "0000000002", "regYear": 2009, "cats": ["m_concrete"], "type": "sup", "status": "prequalified", "source": "excel", "updated": "2026-06-11", "region": "Bakı", "contact": "Demo əlaqə", "phone": "—", "email": "demo@example.az", "raw": {"A.1": 3, "A.2": 17, "A.3": 3, "A.4": 3, "B.1": 31000000, "B.2": 9000000, "B.3": 3, "B.4": 3, "C.1": 2, "C.2": 3, "C.3": 3, "C.4": 3, "D.1": 3, "D.2": 3, "D.3": 1, "E.1": 3, "E.2": 2, "E.3": 2, "F.1": 3, "F.2": 3, "F.3": 3, "G.1": 9, "G.2": 3}}, {"id": "S03", "name": "AzGlass Systems (demo)", "voen": "0000000003", "regYear": 2016, "cats": ["m_glass"], "type": "sup", "status": "under_review", "source": "form", "updated": "2026-08-22", "region": "Bakı", "contact": "Demo əlaqə", "phone": "—", "email": "demo@example.az", "raw": {"A.1": 3, "A.2": 10, "A.3": 2, "A.4": 3, "B.1": 4800000, "B.2": 900000, "B.3": 2, "B.4": 1, "C.1": 2, "C.2": 2, "C.3": 3, "C.4": 2, "D.1": 2, "D.2": 1, "D.3": 25, "E.1": 2, "E.2": 1, "E.3": 2, "F.1": 2, "F.2": 2, "F.3": 3, "G.1": 3, "G.2": 2}}, {"id": "S04", "name": "Nur Elektrik Tədarük (demo)", "voen": "0000000004", "regYear": 2019, "cats": ["m_electrical"], "type": "sup", "status": "invited", "source": "form", "updated": "2026-08-10", "region": "Bakı", "contact": "Demo əlaqə", "phone": "—", "email": "demo@example.az", "raw": {"A.1": 3, "A.2": 7, "A.3": 3, "A.4": 0, "B.1": 2100000, "B.2": 300000, "B.3": 1, "B.4": 0, "C.1": 3, "C.2": 1, "C.3": 2, "C.4": 1, "D.1": 2, "D.2": 2, "D.3": 12, "E.1": 3, "E.2": 3, "E.3": 1, "F.1": 1, "F.2": 2, "F.3": 3, "G.1": 2, "G.2": 1}}];
+const PROJECTS = [{"id": "P238", "code": "TQS-238", "name": "Gənclik Bahar Residence", "client": "\"Uni Ko\" QSC", "stage": "tender", "deadline": "2026-09-30", "value": 21500000, "packages": [{"id": "pk1", "cat": "facade", "value": 4500000, "minClass": "B", "certs": ["iso9001"]}, {"id": "pk2", "cat": "steel", "value": 1200000, "minClass": "C", "certs": []}, {"id": "pk3", "cat": "mep", "value": 3000000, "minClass": "B", "certs": ["iso45001"]}, {"id": "pk4", "cat": "finishing", "value": 2500000, "minClass": "C", "certs": []}, {"id": "pk5", "cat": "flooring", "value": 600000, "minClass": "C", "certs": []}, {"id": "pk6", "cat": "m_concrete", "value": 1800000, "minClass": "B", "certs": []}, {"id": "pk7", "cat": "m_rebar", "value": 1100000, "minClass": "B", "certs": []}]}, {"id": "P301", "code": "TQS-301", "name": "Xəzər Logistics Park (demo)", "client": "Demo Sifarişçi", "stage": "go_nogo", "deadline": "2026-10-20", "value": 14000000, "packages": [{"id": "pk1", "cat": "steel", "value": 5200000, "minClass": "B", "certs": ["iso9001"]}, {"id": "pk2", "cat": "concrete", "value": 3800000, "minClass": "B", "certs": []}, {"id": "pk3", "cat": "electrical", "value": 1500000, "minClass": "C", "certs": []}, {"id": "pk4", "cat": "landscape", "value": 400000, "minClass": "C", "certs": []}, {"id": "pk5", "cat": "m_electrical", "value": 900000, "minClass": "C", "certs": []}]}];
+const FORM = {"A": {"az": "A. Şirkət Profili", "en": "A. Company profile", "rows": [["A.1", "Şirkətin tam rəsmi adı", "Full legal name", "text", "A-01"], ["A.2", "Ticarət reyestr nömrəsi", "Trade register number", "text", "A-02"], ["A.3", "VÖEN", "Tax ID (VÖEN)", "text", "A-02"], ["A.4", "Qeydiyyat ili", "Year of registration", "number", "A-02"], ["A.5", "Hüquqi ünvan (tam)", "Legal address", "text", "A-03"], ["A.6", "Əsas əlaqə şəxsi", "Primary contact", "text", "—"], ["A.7", "Vəzifəsi", "Position", "text", "—"], ["A.8", "Telefon / WhatsApp", "Phone / WhatsApp", "text", "—"], ["A.9", "E-poçt", "E-mail", "text", "—"], ["A.10", "Veb sayt", "Website", "text", "—"], ["#", "HÜQUQİ SƏNƏDLƏR", "LEGAL DOCUMENTS"], ["A.11", "Tikinti lisenziyası mövcuddurmu? ⚠ MƏCBURİ", "Construction licence held? ⚠ MANDATORY", "yn", "A-04", 1], ["A.12", "Lisenziyanın nömrəsi", "Licence number", "text", "A-04"], ["A.13", "Verilmə tarixi", "Issue date", "date", "A-04"], ["A.14", "Etibarlılıq müddəti", "Valid until", "date", "A-04"], ["A.15", "Vergi borcsuzluğu arayışı (son 3 ay) ⚠ MƏCBURİ", "Tax clearance certificate (last 3 months) ⚠ MANDATORY", "yn", "A-05", 1], ["A.16", "Arayışın verilmə tarixi", "Certificate date", "date", "A-05"], ["#", "ŞİRKƏT STRUKTURU", "COMPANY STRUCTURE"], ["A.17", "Təsis forması", "Legal form", "text", "A-03"], ["A.18", "Təsisçilərin sayı", "Number of founders", "number", "A-06"], ["A.19", "Nizamnamə kapitalı (AZN)", "Charter capital (AZN)", "number", "A-03"], ["A.20", "IBAN", "IBAN", "text", "A-07"]]}, "B": {"az": "B. Maliyyə", "en": "B. Financial", "rows": [["#", "İLLİK DÖVRİYYƏ (AZN)", "ANNUAL TURNOVER (AZN)"], ["B.1", "Son tam il üzrə dövriyyə", "Turnover, last full year", "number", "B-01"], ["B.2", "İkinci son il", "Year −2", "number", "B-01"], ["B.3", "Üçüncü son il", "Year −3", "number", "B-01"], ["B.4", "Son 3 ilin orta dövriyyəsi (avtomatik)", "3-year average (auto)", "calc", "—"], ["#", "KAPİTAL VƏ AKTİVLƏR", "CAPITAL & ASSETS"], ["B.5", "Öz kapitalı (Equity)", "Equity", "number", "B-02"], ["B.6", "Cari aktivlər", "Current assets", "number", "B-02"], ["B.7", "Cari öhdəliklər", "Current liabilities", "number", "B-02"], ["B.8", "Likvidlik əmsalı (avtomatik)", "Current ratio (auto)", "calc", "—"], ["#", "BANK VƏ AUDİT", "BANK & AUDIT"], ["B.9", "Bank kredit xətti mövcuddurmu?", "Bank credit line?", "yn", "B-03"], ["B.10", "Kredit xəttinin məbləği", "Credit line amount", "number", "B-03"], ["B.11", "Bank adı", "Bank", "text", "B-03"], ["B.12", "Son 3 ildə audit olmuşdurmu?", "Audited in last 3 years?", "yn", "B-04"], ["B.13", "Audit şirkəti", "Audit firm", "text", "B-04"]]}, "C": {"az": "C. Texniki Təcrübə", "en": "C. Technical experience", "rows": [["#", "TAMAMLANMIŞ LAYİHƏLƏR (son 5 il) — cədvəl", "COMPLETED PROJECTS (last 5 years) — table"], ["C.t1", "Layihə cədvəli: ad, sifarişçi, başlama, bitmə, müddət, dəyər, tip", "Project table: name, client, start, end, duration, value, type", "table", "C-01"], ["#", "DAVAM EDƏN LAYİHƏLƏR", "ONGOING PROJECTS"], ["C.t2", "Layihə cədvəli: ad, sifarişçi, başlama, planlanan bitmə, %, dəyər", "Table: name, client, start, planned end, %, value", "table", "—"], ["#", "KEYFİYYƏT SERTİFİKATI", "QUALITY CERTIFICATE"], ["C.1", "ISO 9001 mövcuddurmu?", "ISO 9001 held?", "yn", "C-02"], ["C.2", "Sertifikatın nömrəsi", "Certificate number", "text", "C-02"], ["C.3", "Etibarlılıq tarixi", "Valid until", "date", "C-02"]]}, "D": {"az": "D. Maddi-Texniki Baza", "en": "D. Facilities & equipment", "rows": [["#", "OFİS VƏ EMALATXANA", "OFFICE & WORKSHOP"], ["D.1", "Baş ofisin ünvanı", "Head office address", "text", "D-01"], ["D.2", "Ofis sahəsi (m²)", "Office area (m²)", "number", "D-01"], ["D.3", "Mülkiyyət forması (öz/kira)", "Ownership (own/rent)", "text", "D-01"], ["D.4", "Emalatxana sahəsi (m²)", "Workshop area (m²)", "number", "D-01"], ["D.5", "Anbar sahəsi (m²)", "Warehouse area (m²)", "number", "D-01"], ["#", "AVADANLIQ VƏ ALƏTLƏR", "EQUIPMENT & TOOLS"], ["D.6", "İnşaat avadanlıqlarının ümumi sayı", "Total construction equipment", "number", "D-02"], ["D.7", "Kran / yük qaldırıcı", "Cranes / hoists", "number", "D-02"], ["D.8", "Beton qarışdırıcı və nasos", "Concrete mixers & pumps", "number", "D-02"], ["D.9", "Qaynaq və metal emal avadanlığı", "Welding & metalwork equipment", "number", "D-02"], ["D.10", "Elektrik alət dəstləri", "Power tool sets", "number", "D-02"], ["#", "NƏQLİYYAT PARKI", "FLEET"], ["D.11", "Yük maşınları", "Trucks", "number", "D-03"], ["D.12", "Mikroavtobus / minik", "Vans / cars", "number", "D-03"], ["D.13", "İxtisas texnikası (ekskavator, buldozer)", "Heavy machinery", "number", "D-03"], ["D.14", "Bütün nəqliyyat sığortalıdırmı?", "All vehicles insured?", "yn", "D-03"]]}, "E": {"az": "E. Kadr Resursları", "en": "E. Human resources", "rows": [["#", "ÜMUMİ HEYƏT", "HEADCOUNT"], ["E.1", "Ümumi daimi heyət", "Permanent staff", "number", "E-01"], ["E.2", "Müvəqqəti / müqaviləli", "Temporary / contract", "number", "E-01"], ["E.3", "İnzibati heyət", "Administrative staff", "number", "E-01"], ["#", "TEXNİKİ HEYƏT", "TECHNICAL STAFF"], ["E.4", "Baş mühəndis / texniki direktor", "Chief engineer / technical director", "number", "E-02"], ["E.5", "Tikinti mühəndisləri", "Civil engineers", "number", "E-02"], ["E.6", "Memarlar", "Architects", "number", "E-02"], ["E.7", "Elektrik mühəndisləri", "Electrical engineers", "number", "E-02"], ["E.8", "MEP / HVAC mühəndisləri", "MEP / HVAC engineers", "number", "E-02"], ["E.9", "Texniklər (usta, texnik)", "Technicians / foremen", "number", "E-02"], ["#", "FƏHLƏ HEYƏTİ", "WORKFORCE"], ["E.10", "İxtisaslı fəhlələr", "Skilled workers", "number", "E-01"], ["E.11", "Köməkçi fəhlələr", "Unskilled workers", "number", "E-01"], ["#", "SƏTƏMM VƏ KEYFİYYƏT HEYƏTİ", "HSE & QUALITY STAFF"], ["E.12", "Tam ştatlı SƏTƏMM mütəxəssisi varmı?", "Full-time HSE specialist?", "yn", "E-03"], ["E.13", "SƏTƏMM ixtisas sertifikatı", "HSE specialist certified?", "yn", "E-03"], ["E.14", "Keyfiyyət nəzarət heyəti", "QC staff", "number", "E-02"], ["#", "SUBPODRATÇI BAZASI", "SUBCONTRACTOR BASE"], ["E.15", "Daimi subpodratçıların sayı", "Regular subcontractors", "number", "E-04"], ["E.16", "Müqavilələr rəsmiləşdirilibmi?", "Contracts formalised?", "yn", "E-04"]]}, "F": {"az": "F. SƏTƏMM və Keyfiyyət", "en": "F. HSE & quality", "rows": [["#", "SƏTƏMM SİYASƏTİ", "HSE POLICY"], ["F.1", "SƏTƏMM siyasəti sənədi varmı? ⚠ MƏCBURİ", "HSE policy document? ⚠ MANDATORY", "yn", "F-01", 1], ["F.2", "SƏTƏMM planının tarixi", "HSE plan date", "date", "F-01"], ["F.3", "İşçilərə SƏTƏMM təlimi keçirilirmi?", "HSE training delivered?", "yn", "F-02"], ["F.4", "İl ərzində təlim saatları", "Training hours / year", "number", "F-02"], ["#", "ISO SERTİFİKATLARI", "ISO CERTIFICATES"], ["F.5", "ISO 14001 varmı?", "ISO 14001?", "yn", "F-03"], ["F.6", "Nömrə", "Number", "text", "F-03"], ["F.7", "Etibarlılıq", "Valid until", "date", "F-03"], ["F.8", "ISO 45001 varmı?", "ISO 45001?", "yn", "F-04"], ["F.9", "Nömrə", "Number", "text", "F-04"], ["F.10", "Etibarlılıq", "Valid until", "date", "F-04"], ["#", "BƏDBƏXT HADİSƏ STATİSTİKASI (son 3 il)", "ACCIDENT STATISTICS (3 years)"], ["F.11", "Ölümlə nəticələnən hadisə", "Fatalities", "number", "F-05"], ["F.12", "Ağır xəsarət", "Serious injuries", "number", "F-05"], ["F.13", "İş günü itkisi ilə hadisə", "Lost-time incidents", "number", "F-05"], ["F.14", "LTIR (son il)", "LTIR (last year)", "number", "F-05"], ["#", "ŞƏXSİ MÜHAFİZƏ VASİTƏLƏRİ", "PPE"], ["F.15", "Bütün işçilər FMV ilə təmin olunurmu?", "All workers issued PPE?", "yn", "F-06"], ["F.16", "FMV keyfiyyət sertifikatı", "PPE quality certificate?", "yn", "F-06"]]}, "G": {"az": "G. Sığorta və Referanslar", "en": "G. Insurance & references", "rows": [["#", "MƏSULİYYƏT SIĞORTASI", "LIABILITY INSURANCE"], ["G.1", "Peşəkar məsuliyyət sığortası varmı?", "Professional liability insurance?", "yn", "G-01"], ["G.2", "Sığorta şirkəti", "Insurer", "text", "G-01"], ["G.3", "Polis nömrəsi", "Policy number", "text", "G-01"], ["G.4", "Sığorta məbləği (AZN)", "Cover limit (AZN)", "number", "G-01"], ["G.5", "Etibarlılıq tarixi", "Valid until", "date", "G-01"], ["G.6", "Ümumi məsuliyyət sığortası varmı?", "General liability insurance?", "yn", "G-01"], ["G.7", "Sığorta məbləği (AZN)", "Cover limit (AZN)", "number", "G-01"], ["#", "MÜŞTƏRİ REFERANSLARI (minimum 3)", "CLIENT REFERENCES (minimum 3)"], ["G.t1", "Referans cədvəli: müştəri, layihə, əlaqə şəxsi, məktub", "Reference table: client, project, contact, letter", "table", "G-02"]]}};
+const DOCS = [["A-01", "Şirkətin dövlət qeydiyyatı sənədi", "State registration certificate", 1], ["A-02", "VÖEN və Ticarət reyestri çıxarışı", "Tax ID & trade register extract", 1], ["A-03", "Nizamnamə (son redaksiyası)", "Charter (latest)", 1], ["A-04", "Tikinti lisenziyası (qüvvədə)", "Construction licence (valid)", 1], ["A-05", "Vergi borcsuzluğu arayışı (son 3 ay)", "Tax clearance (last 3 months)", 1], ["A-06", "Təsisçilərin şəxsiyyət vəsiqəsi", "Founders' ID copies", 0], ["A-07", "Bank rekvizitləri (IBAN)", "Bank details (IBAN letter)", 0], ["B-01", "Son 3 ilin mənfəət-zərər hesabatı", "P&L, last 3 years", 1], ["B-02", "Son ilin balans hesabatı", "Balance sheet, last year", 1], ["B-03", "Bank kredit xətti məktubu", "Bank credit line letter", 0], ["B-04", "Auditdən keçmiş hesabat", "Audited financial statement", 0], ["C-01", "Layihə sertifikatları və müştəri məktubları", "Project certificates & client letters", 1], ["C-02", "ISO 9001 sertifikatı", "ISO 9001 certificate", 0], ["D-01", "Ofis/emalatxana mülkiyyət/kira müqaviləsi", "Office/workshop title or lease", 0], ["D-02", "Avadanlıq siyahısı və şəkilləri", "Equipment list & photos", 0], ["D-03", "Nəqliyyat texniki pasportları", "Vehicle registration documents", 0], ["E-01", "İşçi heyətinin siyahısı", "Staff list (counts)", 1], ["E-02", "Mühəndis diplomları", "Engineers' diplomas", 0], ["E-03", "SƏTƏMM mütəxəssisinin sertifikatı", "HSE specialist certificate", 0], ["E-04", "Subpodratçı müqavilələri siyahısı", "Subcontractor agreements list", 0], ["F-01", "SƏTƏMM siyasəti və planı", "HSE policy & plan", 1], ["F-02", "SƏTƏMM təlim jurnalı", "HSE training log", 0], ["F-03", "ISO 14001 sertifikatı", "ISO 14001 certificate", 0], ["F-04", "ISO 45001 sertifikatı", "ISO 45001 certificate", 0], ["F-05", "Bədbəxt hadisə hesabatı (3 il)", "Accident report (3 years)", 0], ["F-06", "FMV sertifikatları", "PPE certificates", 0], ["G-01", "Məsuliyyət sığortası polisi", "Liability insurance policy", 0], ["G-02", "Müştəri referans məktubları (min 3)", "Client reference letters (min 3)", 1], ["H-01", "Rəhbərin imzaladığı Bəyannamə", "Signed declaration", 1], ["H-02", "Möhürlə təsdiq olunmuş forma", "Stamped form", 1]];
+const I18N = {};
+const CATS = {"facade": {"az": "Fasad işləri", "en": "Façade works"}, "steel": {"az": "Polad konstruksiya", "en": "Steel structures"}, "concrete": {"az": "Beton və monolit", "en": "Concrete & structure"}, "mep": {"az": "MEP / HVAC", "en": "MEP / HVAC"}, "electrical": {"az": "Elektrik işləri", "en": "Electrical works"}, "finishing": {"az": "Tamamlama işləri", "en": "Finishing works"}, "flooring": {"az": "Döşəmə / parket", "en": "Flooring / parquet"}, "general": {"az": "Ümumi tikinti", "en": "General construction"}, "industrial": {"az": "Sənaye avadanlığı", "en": "Industrial equipment"}, "landscape": {"az": "Landşaft", "en": "Landscaping"}, "m_concrete": {"az": "Hazır beton", "en": "Ready-mix concrete"}, "m_rebar": {"az": "Armatur və polad", "en": "Rebar & steel"}, "m_glass": {"az": "Şüşə və alüminium", "en": "Glass & aluminium"}, "m_electrical": {"az": "Elektrik materialları", "en": "Electrical materials"}, "m_finishing": {"az": "Tamamlama materialları", "en": "Finishing materials"}};
+// Rev4 subcontractor scoring engine — faithful port of "4. Bal Hesablaması" formulas
+const R1 = x => Math.round(x * 10) / 10;
+const SUB_CRITERIA = [
+  // code, group, max, kind, spec
+  ['A.1','A',5,'rubric',null,true],
+  ['A.2','A',3,'bands',{zero:0,bands:[[3,1],[7,2]],top:3}],
+  ['A.3','A',2,'rubric'],
+  ['A.4','A',5,'rubric',null,true],
+  ['B.1','B',8,'thresh',{cuts:[[500000,0],[1000000,.25],[5000000,.5],[10000000,.75]],top:1}],
+  ['B.2','B',5,'thresh',{cuts:[[500000,0],[1000000,.3],[2500000,.6]],top:1}],
+  ['B.3','B',3,'rubric'],
+  ['B.4','B',4,'rubric'],
+  ['C.1','C',9,'thresh',{cuts:[[2,0],[5,.3],[10,.7]],top:1}],
+  ['C.2','C',7,'thresh',{cuts:[[1000000,0],[3000000,.4],[7000000,.75]],top:1}],
+  ['C.3','C',4,'ongoing'],
+  ['C.4','C',5,'rubric'],
+  ['D.1','D',3,'rubric'],
+  ['D.2','D',4,'rubric'],
+  ['D.3','D',3,'rubric'],
+  ['E.1','E',4,'thresh',{cuts:[[20,0],[50,.4],[100,.75]],top:1}],
+  ['E.2','E',4,'thresh',{cuts:[[3,0],[8,.4],[16,.75]],top:1}],
+  ['E.3','E',3,'rubric'],
+  ['E.4','E',4,'rubric'],
+  ['F.1','F',4,'rubric',null,true],
+  ['F.2','F',3,'rubric'],
+  ['F.3','F',3,'rubric'],
+  ['G.1','G',3,'rubric'],
+  ['G.2','G',2,'thresh',{cuts:[[1,0],[3,.4],[6,.7]],top:1}],
+];
+function scoreCriterion(def, v) {
+  const [code, grp, max, kind, spec] = def; v = Number(v) || 0;
+  switch (kind) {
+    case 'rubric': return R1(v / 3 * max);
+    case 'bands': { if (v === 0) return 0; for (const [lim, pts] of spec.bands) if (v <= lim) return pts; return spec.top; }
+    case 'thresh': { for (const [lim, frac] of spec.cuts) if (v < lim) return R1(max * frac); return max; }
+    case 'ongoing': return v === 0 ? R1(max * .25) : v <= 3 ? R1(max * .5) : v <= 6 ? max : R1(max * .75);
+  }
+}
+function scoreSubcontractor(raw) {
+  const per = {}, groups = { A: 0, B: 0, C: 0, D: 0, E: 0, F: 0, G: 0 };
+  for (const d of SUB_CRITERIA) { const s = scoreCriterion(d, raw[d[0]]); per[d[0]] = s; groups[d[1]] = R1(groups[d[1]] + s); }
+  const total = R1(Object.values(groups).reduce((a, b) => a + b, 0));
+  const ko = SUB_CRITERIA.filter(d => d[5]).every(d => (Number(raw[d[0]]) || 0) > 0);
+  const cls = !ko ? 'KO' : total >= 90 ? 'A' : total >= 80 ? 'B' : total >= 70 ? 'C' : total >= 60 ? 'D' : 'F';
+  return { per, groups, total, ko, cls };
+}
+
+
+/* =====================================================================
+   SUPPLIER SCORING MODEL v1 (proposed) — same engine, different criteria
+   ===================================================================== */
+const SUP_CRITERIA = [
+  ['A.1','A',5,'rubric',null,true],
+  ['A.2','A',3,'bands',{zero:0,bands:[[3,1],[7,2]],top:3}],
+  ['A.3','A',2,'rubric'],
+  ['A.4','A',5,'rubric',null,true],
+  ['B.1','B',6,'thresh',{cuts:[[1000000,0],[3000000,.25],[10000000,.5],[25000000,.75]]}],
+  ['B.2','B',4,'thresh',{cuts:[[500000,0],[1000000,.3],[3000000,.6]]}],
+  ['B.3','B',2,'rubric'],
+  ['B.4','B',3,'rubric'],
+  ['C.1','C',7,'rubric'],
+  ['C.2','C',7,'rubric'],
+  ['C.3','C',5,'rubric',null,true],
+  ['C.4','C',6,'rubric'],
+  ['D.1','D',5,'rubric'],
+  ['D.2','D',4,'rubric'],
+  ['D.3','D',6,'leadtime'],
+  ['E.1','E',6,'rubric'],
+  ['E.2','E',5,'rubric'],
+  ['E.3','E',4,'rubric'],
+  ['F.1','F',4,'rubric'],
+  ['F.2','F',3,'rubric'],
+  ['F.3','F',3,'rubric'],
+  ['G.1','G',3,'thresh',{cuts:[[1,0],[3,.4],[6,.7]]}],
+  ['G.2','G',2,'rubric'],
+];
+function scoreGeneric(CRIT, raw){
+  const per={}, groups={};
+  for(const d of CRIT){
+    let s; const v=Number(raw[d[0]])||0, max=d[2], spec=d[4];
+    if(d[3]==='leadtime') s = v===0?0 : v<=3?max : v<=7?R1(max*.75) : v<=14?R1(max*.5) : v<=30?R1(max*.25) : 0;
+    else s = scoreCriterion(d, v);
+    per[d[0]]=s; groups[d[1]]=R1((groups[d[1]]||0)+s);
+  }
+  const total=R1(Object.values(groups).reduce((a,b)=>a+b,0));
+  const ko=CRIT.filter(d=>d[5]).every(d=>(Number(raw[d[0]])||0)>0);
+  const cls=!ko?'KO':total>=90?'A':total>=80?'B':total>=70?'C':total>=60?'D':'F';
+  return {per,groups,total,ko,cls};
+}
+const CRIT_LABELS = {
+ sub:{
+  'A.1':['Tikinti lisenziyası','Construction licence'],'A.2':['Fəaliyyət ili','Years in operation'],'A.3':['Hüquqi strukturun şəffaflığı','Legal structure transparency'],'A.4':['Vergi borcsuzluğu arayışı','Tax clearance'],
+  'B.1':['Orta illik dövriyyə (3 il)','Avg annual turnover (3y)'],'B.2':['Öz kapitalı','Equity'],'B.3':['Bank kredit xətti','Bank credit line'],'B.4':['Auditdən keçmiş hesabat','Audited statements'],
+  'C.1':['Oxşar layihə sayı (5 il)','Similar projects (5y)'],'C.2':['Ən böyük layihənin dəyəri','Largest project value'],'C.3':['Davam edən layihələr','Ongoing projects'],'C.4':['ISO 9001','ISO 9001'],
+  'D.1':['Ofis və emalatxana','Office & workshop'],'D.2':['Avadanlıq və alətlər','Equipment & tools'],'D.3':['Nəqliyyat parkı','Fleet'],
+  'E.1':['Daimi heyət sayı','Permanent staff'],'E.2':['Mühəndis heyəti','Engineers'],'E.3':['SƏTƏMM mütəxəssisi','HSE specialist'],'E.4':['Subpodratçı bazası','Subcontractor base'],
+  'F.1':['SƏTƏMM siyasəti və planı','HSE policy & plan'],'F.2':['ISO 14001 / 45001','ISO 14001 / 45001'],'F.3':['Bədbəxt hadisə göstəricisi','Accident record'],
+  'G.1':['Məsuliyyət sığortası','Liability insurance'],'G.2':['Referans sayı','References'] },
+ sup:{
+  'A.1':['Qeydiyyat / fəaliyyət icazəsi','Registration / trade permit'],'A.2':['Fəaliyyət ili','Years in operation'],'A.3':['Hüquqi strukturun şəffaflığı','Legal structure transparency'],'A.4':['Vergi borcsuzluğu arayışı','Tax clearance'],
+  'B.1':['Orta illik dövriyyə','Avg annual turnover'],'B.2':['Öz kapitalı','Equity'],'B.3':['Bank kredit xətti','Bank credit line'],'B.4':['Auditdən keçmiş hesabat','Audited statements'],
+  'C.1':['Məhsul çeşidinin əhatəsi','Product range coverage'],'C.2':['İstehsal / anbar gücü','Production / stock capacity'],'C.3':['İstehsalçı avtorizasiyası / mənşə','Manufacturer authorisation / origin'],'C.4':['Məhsul sertifikatları (CE, GOST, test)','Product certificates (CE, GOST, tests)'],
+  'D.1':['Yerli anbar / ehtiyat','Local warehouse / stock'],'D.2':['Öz nəqliyyatı','Own transport'],'D.3':['Orta tədarük müddəti (gün)','Average lead time (days)'],
+  'E.1':['Qiymət rəqabətliliyi','Price competitiveness'],'E.2':['Ödəniş şərtləri','Payment terms'],'E.3':['Zəmanət şərtləri','Warranty terms'],
+  'F.1':['ISO 9001','ISO 9001'],'F.2':['Qüsur / qaytarma göstəricisi','Defect / return record'],'F.3':['Sahəyə çatdırılma SƏTƏMM uyğunluğu','Site delivery HSE compliance'],
+  'G.1':['Referans sayı','References'],'G.2':['Çatdırılma tarixçəsi','Delivery track record'] }
+};
+const GROUP_LABELS = {
+ sub:{A:['Şirkət profili','Company profile'],B:['Maliyyə','Financial'],C:['Texniki təcrübə','Technical experience'],D:['Maddi-texniki baza','Facilities'],E:['Kadr resursları','Human resources'],F:['SƏTƏMM və keyfiyyət','HSE & quality'],G:['Sığorta və referanslar','Insurance & references']},
+ sup:{A:['Şirkət profili','Company profile'],B:['Maliyyə','Financial'],C:['Məhsul və texniki imkan','Product & technical'],D:['Logistika','Logistics'],E:['Kommersiya','Commercial'],F:['Keyfiyyət və SƏTƏMM','Quality & HSE'],G:['Referanslar','References']}
+};
+const UNITS = {sub:{'A.2':'il','B.1':'AZN','B.2':'AZN','C.1':'ədəd','C.2':'AZN','C.3':'ədəd','E.1':'nəfər','E.2':'nəfər','G.2':'ədəd'},sup:{'A.2':'il','B.1':'AZN','B.2':'AZN','D.3':'gün','G.1':'ədəd'}};
+
+/* =====================================================================
+   I18N
+   ===================================================================== */
+Object.assign(I18N, {
+ az:{
+  role_manager:'Menecer', role_vendor:'Vendor portalı',
+  nav_overview:'İcmal', nav_vendors:'Vendor reyestri', nav_apps:'Müraciətlər', nav_projects:'Layihələr və uyğunluq', nav_market:'Bazar kəşfiyyatı', nav_models:'Bal modelləri', nav_integrations:'Məlumat mənbələri',
+  nav_vhome:'Status', nav_vprofile:'Şirkət profili', nav_vapply:'Müraciət forması', nav_vdocs:'Sənədlər', nav_vsubmit:'Bəyannamə və göndəriş',
+  sec_manage:'İdarəetmə', sec_intel:'Kəşfiyyat', sec_setup:'Konfiqurasiya', sec_vendor:'Vendor',
+  foot:'Prototip · Rev4 bal modeli · Məlumatlar TQS2026006 prekvalifikasiyasından',
+  ov_title:'İcmal', ov_sub:'Vendor bazasının vəziyyəti, gözləyən müraciətlər və diqqət tələb edən məsələlər.',
+  k_total:'Reyestrdə vendor', k_preq:'Prekvalifikasiya keçmiş', k_pending:'Baxılmağı gözləyən', k_exp:'60 gün ərzində bitən sənəd',
+  k_sub:'subpodratçı', k_sup:'tədarükçü', k_classAB:'A/B sinfi', k_needs:'natamam məlumat',
+  h_classes:'Sinif üzrə paylanma', h_cover:'Kateqoriya üzrə əhatə (prekvalifikasiya keçmiş)', h_attention:'Diqqət tələb edir', h_recent:'Son fəaliyyət',
+  vendors_title:'Vendor reyestri', vendors_sub:'Bütün mənbələrdən (Excel forma, portal, ERP API) toplanmış vahid vendor bazası. Sətrə klikləyin.',
+  f_all:'Hamısı', f_sub:'Subpodratçılar', f_sup:'Tədarükçülər', f_search:'Ad və ya VÖEN axtar…', f_cat:'Kateqoriya', f_class:'Sinif',
+  th_vendor:'Vendor', th_type:'Tip', th_cats:'Kateqoriyalar', th_score:'Bal', th_class:'Sinif', th_status:'Status', th_source:'Mənbə', th_updated:'Yenilənib', th_region:'Region', th_staff:'Heyət', th_turnover:'Dövriyyə (AZN)',
+  st_prequalified:'Prekvalifikasiya keçib', st_rejected:'Rədd edilib', st_incomplete:'Natamam məlumat', st_under_review:'Baxılır', st_invited:'Dəvət edilib', st_registered:'Qeydiyyatdan keçib',
+  src_excel:'Excel forma', src_form:'Portal', src_api:'ERP API', src_manual:'Əl ilə',
+  type_sub:'Subpodratçı', type_sup:'Tədarükçü',
+  cats_note:'Kateqoriya təyinatları nümunə məqsədlidir — istehsalda vendor özü seçir, menecer təsdiqləyir.',
+  back:'← Geri', v_profile:'Profil', v_scores:'Bal kartı', v_docs:'Sənədlər', v_projects:'Layihə tarixçəsi', v_history:'Qiymətləndirmə tarixçəsi',
+  total_score:'Ümumi bal', ko_pass:'Məcburi meyarlar: keçdi', ko_fail:'Məcburi meyar: RƏDD', pass_mark:'Keçid: 70',
+  d_contact:'Əlaqə şəxsi', d_phone:'Telefon', d_email:'E-poçt', d_web:'Veb', d_addr:'Ünvan', d_reg:'Qeydiyyat ili', d_voen:'VÖEN', d_staff:'Ümumi heyət', d_eng:'Mühəndis heyəti', d_source:'Məlumat mənbəyi', d_updated:'Son yenilənmə',
+  doc_valid:'Etibarlı', doc_expiring:'Bitmək üzrə', doc_expired:'Bitib', doc_missing:'Yoxdur', doc_perm:'Müddətsiz',
+  apps_title:'Müraciətlər və qiymətləndirmə', apps_sub:'Prekvalifikasiya dövrü üzrə müraciətlər. Açın, 0–3 rubrika ballarını daxil edin — nəticə Rev4 düsturları ilə dərhal hesablanır.',
+  th_cycle:'Dövr', th_submitted:'Təqdim', th_decision:'Qərar', th_evaluator:'Qiymətləndirən',
+  ev_title:'Qiymətləndirmə', ev_sub:'Xam göstəricilər vendor formasından avtomatik gəlir; 0–3 rubrika xanaları sənəd yoxlanışından sonra doldurulur.',
+  ev_raw:'Xam göstərici', ev_pts:'Bal', ev_max:'Maks', ev_crit:'Meyar', ev_save:'Yadda saxla', ev_approve:'Prekvalifikasiyanı təsdiqlə', ev_reject:'Rədd et', ev_info:'Əlavə məlumat istə', ev_reset:'Sıfırla',
+  ev_saved:'Ballar yadda saxlanıldı', ev_approved:'Vendor prekvalifikasiya keçmiş kimi qeyd edildi', ev_rejected:'Müraciət rədd edildi', ev_info_sent:'Vendora əlavə məlumat sorğusu göndərildi',
+  ev_decision:'Nəticə', ev_evidence:'Sənəd', ev_group:'Qrup cəmi',
+  proj_title:'Layihələr və vendor uyğunluğu', proj_sub:'Hər iş paketi üçün uyğun vendorlar, əhatə və go / no-go göstəricisi.',
+  th_project:'Layihə', th_client:'Sifarişçi', th_stage:'Mərhələ', th_value:'Dəyər (AZN)', th_packages:'Paketlər', th_coverage:'Əhatə', th_gonogo:'Go / No-Go', th_deadline:'Son tarix',
+  stage_tender:'Tender', stage_go_nogo:'Go/No-Go qiymətləndirməsi', stage_execution:'İcra',
+  go:'GO', nogo:'NO-GO', cond:'ŞƏRTİ', pk_go:'Kifayət qədər vendor var', pk_cond:'Məhdud seçim', pk_nogo:'Uyğun vendor yoxdur',
+  m_title:'Paket uyğunluğu', m_package:'İş paketi', m_min:'Min. sinif', m_cands:'Uyğun vendorlar', m_strong:'A/B', m_fit:'Kapasitet uyğunluğu', m_none:'Bu kateqoriyada prekvalifikasiya keçmiş vendor yoxdur — bazar araşdırması tələb olunur.',
+  m_rule:'Qayda: paket GO — ≥2 A/B sinifli və kapasiteti uyğun (ən böyük layihə ≥ paket dəyərinin 40%-i) vendor; ŞƏRTİ — ≥1 uyğun vendor; NO-GO — heç biri. Layihə: bütün paketlər GO → GO; hər hansı NO-GO → NO-GO; əks halda ŞƏRTİ.',
+  m_recommend:'Tövsiyə', m_gap:'Boşluq', m_rec_go:'Tenderə daxil olmaq üçün vendor bazası kifayətdir.', m_rec_cond:'Zəif paketlər üçün əlavə vendor cəlb edin və ya risk qeydi ilə davam edin.', m_rec_nogo:'Kritik paketlərdə vendor yoxdur — bazar araşdırması olmadan tenderə girmək riskli.',
+  m_capfit_ok:'uyğun', m_capfit_no:'kiçik',
+  mk_title:'Bazar kəşfiyyatı', mk_sub:'Vendor bazasının kateqoriya, kapasitet, sertifikat və məlumat keyfiyyəti üzrə mənzərəsi.',
+  mk_heat:'Kateqoriya × sinif matrisi', mk_cap:'Kateqoriya üzrə ümumi kapasitet (prekvalifikasiya keçmiş)', mk_cert:'Sertifikat və sığorta yayılması', mk_src:'Məlumat mənbələri', mk_exp:'Bitən sənədlər (60 gün)', mk_gap:'Bazar boşluqları',
+  mk_turn:'Cəmi dövriyyə', mk_eng:'Mühəndis', mk_vend:'vendor', mk_gap_txt:'Prekvalifikasiya keçmiş vendoru olmayan kateqoriyalar:', mk_fresh:'Məlumat təzəliyi', mk_fresh_txt:'90 gündən köhnə profil',
+  mo_title:'Bal modelləri', mo_sub:'Versiyalanmış meyar dəstləri. Subpodratçı modeli TQS2026006 Rev4 ilə eynidir; tədarükçü modeli təklifdir.',
+  mo_sub_model:'Subpodratçı modeli — Rev4', mo_sup_model:'Tədarükçü modeli — v1 (təklif)', mo_ko:'Məcburi (KO)', mo_rule:'Hesablama qaydası', mo_classes:'Nəticə təsnifatı',
+  r_rubric:'0–3 rubrika × maks/3', r_bands:'İl: 0→0, ≤3→1, ≤7→2, >7→3', r_thresh:'Hədd cədvəli', r_ongoing:'0→25%, ≤3→50%, ≤6→100%, >6→75%', r_leadtime:'≤3 gün→100%, ≤7→75%, ≤14→50%, ≤30→25%',
+  in_title:'Məlumat mənbələri və inteqrasiyalar', in_sub:'Vendor məlumatı üç yolla daxil olur: Excel forma (mövcud proses), portal forması və vendorun ERP-si ilə API. Hər sahənin mənbəyi və tarixi saxlanılır.',
+  in_adapter:'Adapter', in_status:'Status', in_records:'Qeydlər', in_last:'Son sinxron', in_desc:'Təsvir',
+  in_excel:'Excel forma importu', in_excel_d:'Mövcud 11 vərəqli müraciət formasını oxuyur, sahələri kodlara (A.1…G.7) uyğunlaşdırır, sənəd siyahısını yoxlayır.',
+  in_form:'Vendor portalı forması', in_form_d:'Eyni sahə kataloqu; vendor özü daxil edir, doğrulama və sənəd yükləmə ilə.',
+  in_api:'ERP API konnektorları', in_api_d:'1C, SAP, Odoo və xüsusi REST üçün adapterlər — dövriyyə, heyət, layihə siyahısı avtomatik yenilənir.',
+  in_reg:'Dövlət reyestrləri', in_reg_d:'Vergi borcsuzluğu və lisenziya statusunun avtomatik yoxlanışı (planlaşdırılır).',
+  in_perf:'Layihə icra qeydləri', in_perf_d:'Müqavilə sonrası performans (vaxt, keyfiyyət, SƏTƏMM) — yenidən kvalifikasiya balına təsir edir.',
+  s_active:'Aktiv', s_planned:'Planlaşdırılır', s_config:'Konfiqurasiya tələb olunur',
+  in_try:'Excel importunu sınayın', in_try_d:'WESA formasının faylını oxuyub sahələri necə uyğunlaşdırdığını göstərir.', in_run:'Import et', in_result:'Uyğunlaşdırılmış sahələr', in_mapped:'sahə uyğunlaşdırıldı', in_docs:'sənəd statusu oxundu', in_warn:'xəbərdarlıq',
+  in_w1:'A.16 arayış tarixi 2020-09-28 — son 3 ay şərtinə uyğun deyil, yoxlayın', in_w2:'C.t2 davam edən layihə tamamlanma % iki formatda (0.95 və 85%) — normallaşdırıldı',
+  vh_title:'Müraciət statusu', vh_sub:'Prekvalifikasiya prosesində hazırkı mərhələ və növbəti addımlar.',
+  step_reg:'Qeydiyyat', step_inv:'Dəvət', step_app:'Forma doldurulur', step_sub:'Təqdim edilib', step_rev:'Baxılır', step_dec:'Qərar',
+  vh_result:'Nəticə', vh_valid:'Etibarlılıq', vh_next:'Növbəti addımlar', vh_n1:'Vergi borcsuzluğu arayışını yeniləyin (son 3 ay şərti).', vh_n2:'ISO 9001 sertifikatı 10.12.2026-da bitir — yenilənmiş surəti yükləyin.', vh_n3:'Profil məlumatlarınızı ildə bir dəfə təsdiqləyin.',
+  vh_class_txt:'Siniflər: A (90+) birinci prioritetlə dəvət, B (80–89) dəvət, C (70–79) şərti dəvət.',
+  vp_title:'Şirkət profili', vp_sub:'Bu məlumatlar bütün tenderlər üçün bir dəfə saxlanılır — hər dəfə yenidən doldurmağa ehtiyac yoxdur.', vp_save:'Profili yadda saxla', vp_saved:'Profil yadda saxlanıldı',
+  va_title:'Prekvalifikasiya müraciət forması', va_sub:'Mövcud Excel formasının A–G bölmələri. Sarı xanalar vendor tərəfindən doldurulur; bənövşəyi kod tələb olunan sənəddir.',
+  va_col_q:'Sual / göstərici', va_col_a:'Cavab', va_col_doc:'Sənəd', va_col_unit:'Format', va_yes:'Var', va_no:'Yoxdur', va_table:'Cədvəl (ayrıca)', va_auto:'avtomatik', va_progress:'Doldurulma',
+  vd_title:'Sənədlər paketi', vd_sub:'Hər sənədi PDF şəklində yükləyin. Məcburi sənədlər olmadan müraciət qəbul edilmir.', vd_req:'Məcburi', vd_opt:'Opsional', vd_status:'Status', vd_ready:'Yüklənib', vd_prep:'Hazırlanır', vd_na:'Aidiyyatsız', vd_missing:'Yüklənməyib', vd_upload:'Yüklə', vd_progress:'Tamamlanma', vd_exp:'Etibarlılıq',
+  vs_title:'Bəyannamə və göndəriş', vs_sub:'Rəhbər təsdiqi ilə müraciət komissiyaya göndərilir.', vs_decl:'Mən, aşağıda imzası olan şəxs, bu formanın və əlavə edilmiş bütün sənədlərin həqiqətə uyğun olduğunu təsdiq edirəm.', vs_name:'Rəhbərin adı', vs_pos:'Vəzifəsi', vs_agree:'Bəyannamə ilə razıyam', vs_send:'Müraciəti göndər', vs_sent:'Müraciət göndərildi — komissiya baxışına keçdi', vs_check:'Göndərişdən əvvəl yoxlama', vs_c1:'Məcburi sahələr doldurulub', vs_c2:'Məcburi sənədlər yüklənib', vs_c3:'Məcburi meyarlar (lisenziya, vergi arayışı, SƏTƏMM) “Var”',
+  as_vendor:'Vendor kimi bax:', of:'/', pts:'bal', criteria:'meyar',
+  tl1:'Shield — ERP API sinxronu: dövriyyə və heyət yeniləndi', tl2:'AzGlass Systems (demo) — portal müraciəti təqdim edildi', tl3:'Gilan (Kila Qrup) — ERP API sinxronu', tl4:'Nur Elektrik (demo) — dəvət göndərildi', tl5:'Arti Qrup — A-05 vergi arayışı bitdi',
+  att_exp:'sənədin müddəti bitib və ya 60 gün ərzində bitir', att_rev:'müraciət baxılmağı gözləyir', att_inc:'müraciət natamam — vendor xatırladılmalıdır', att_gap:'kateqoriyada prekvalifikasiya keçmiş vendor yoxdur',
+  none:'—', of100:'/100', packages:'paket', vendors_n:'vendor', show:'Göstər', months:'ay',
+ },
+ en:{
+  role_manager:'Manager', role_vendor:'Vendor portal',
+  nav_overview:'Overview', nav_vendors:'Vendor register', nav_apps:'Applications', nav_projects:'Projects & matching', nav_market:'Market intelligence', nav_models:'Scoring models', nav_integrations:'Data sources',
+  nav_vhome:'Status', nav_vprofile:'Company profile', nav_vapply:'Application form', nav_vdocs:'Documents', nav_vsubmit:'Declaration & submit',
+  sec_manage:'Manage', sec_intel:'Intelligence', sec_setup:'Setup', sec_vendor:'Vendor',
+  foot:'Prototype · Rev4 scoring model · Data from TQS2026006 prequalification',
+  ov_title:'Overview', ov_sub:'State of the vendor base, pending applications and items needing attention.',
+  k_total:'Vendors in register', k_preq:'Prequalified', k_pending:'Awaiting review', k_exp:'Documents expiring in 60 days',
+  k_sub:'subcontractors', k_sup:'suppliers', k_classAB:'class A/B', k_needs:'incomplete data',
+  h_classes:'Class distribution', h_cover:'Coverage by category (prequalified)', h_attention:'Needs attention', h_recent:'Recent activity',
+  vendors_title:'Vendor register', vendors_sub:'One vendor base fed from every source (Excel form, portal, ERP API). Click a row.',
+  f_all:'All', f_sub:'Subcontractors', f_sup:'Suppliers', f_search:'Search name or tax ID…', f_cat:'Category', f_class:'Class',
+  th_vendor:'Vendor', th_type:'Type', th_cats:'Categories', th_score:'Score', th_class:'Class', th_status:'Status', th_source:'Source', th_updated:'Updated', th_region:'Region', th_staff:'Staff', th_turnover:'Turnover (AZN)',
+  st_prequalified:'Prequalified', st_rejected:'Rejected', st_incomplete:'Incomplete data', st_under_review:'Under review', st_invited:'Invited', st_registered:'Registered',
+  src_excel:'Excel form', src_form:'Portal', src_api:'ERP API', src_manual:'Manual',
+  type_sub:'Subcontractor', type_sup:'Supplier',
+  cats_note:'Category assignments are illustrative — in production the vendor selects and the manager confirms.',
+  back:'← Back', v_profile:'Profile', v_scores:'Scorecard', v_docs:'Documents', v_projects:'Project history', v_history:'Evaluation history',
+  total_score:'Total score', ko_pass:'Mandatory criteria: passed', ko_fail:'Mandatory criterion failed: REJECT', pass_mark:'Pass mark: 70',
+  d_contact:'Contact', d_phone:'Phone', d_email:'E-mail', d_web:'Web', d_addr:'Address', d_reg:'Registered', d_voen:'Tax ID', d_staff:'Total staff', d_eng:'Engineers', d_source:'Data source', d_updated:'Last update',
+  doc_valid:'Valid', doc_expiring:'Expiring', doc_expired:'Expired', doc_missing:'Missing', doc_perm:'No expiry',
+  apps_title:'Applications & evaluation', apps_sub:'Applications per prequalification cycle. Open one, enter the 0–3 rubric scores — the result recomputes instantly with the Rev4 formulas.',
+  th_cycle:'Cycle', th_submitted:'Submitted', th_decision:'Decision', th_evaluator:'Evaluator',
+  ev_title:'Evaluation', ev_sub:'Raw indicators arrive from the vendor form automatically; 0–3 rubric cells are filled after document verification.',
+  ev_raw:'Raw indicator', ev_pts:'Points', ev_max:'Max', ev_crit:'Criterion', ev_save:'Save', ev_approve:'Approve prequalification', ev_reject:'Reject', ev_info:'Request more information', ev_reset:'Reset',
+  ev_saved:'Scores saved', ev_approved:'Vendor marked as prequalified', ev_rejected:'Application rejected', ev_info_sent:'Information request sent to vendor',
+  ev_decision:'Result', ev_evidence:'Document', ev_group:'Group total',
+  proj_title:'Projects & vendor matching', proj_sub:'Matching vendors per work package, coverage and the go / no-go indicator.',
+  th_project:'Project', th_client:'Client', th_stage:'Stage', th_value:'Value (AZN)', th_packages:'Packages', th_coverage:'Coverage', th_gonogo:'Go / No-Go', th_deadline:'Deadline',
+  stage_tender:'Tender', stage_go_nogo:'Go/No-Go assessment', stage_execution:'Execution',
+  go:'GO', nogo:'NO-GO', cond:'CONDITIONAL', pk_go:'Enough qualified vendors', pk_cond:'Limited choice', pk_nogo:'No qualified vendor',
+  m_title:'Package matching', m_package:'Work package', m_min:'Min. class', m_cands:'Qualified vendors', m_strong:'A/B', m_fit:'Capacity fit', m_none:'No prequalified vendor in this category — market research needed.',
+  m_rule:'Rule: package GO — ≥2 class A/B vendors with capacity fit (largest project ≥ 40% of package value); CONDITIONAL — ≥1 qualified vendor; NO-GO — none. Project: all packages GO → GO; any NO-GO → NO-GO; otherwise CONDITIONAL.',
+  m_recommend:'Recommendation', m_gap:'Gap', m_rec_go:'Vendor base is sufficient to enter the tender.', m_rec_cond:'Source additional vendors for weak packages, or proceed with a logged risk.', m_rec_nogo:'Critical packages have no vendor — entering without market research is risky.',
+  m_capfit_ok:'fit', m_capfit_no:'small',
+  mk_title:'Market intelligence', mk_sub:'The vendor base by category, capacity, certification and data quality.',
+  mk_heat:'Category × class matrix', mk_cap:'Aggregate capacity by category (prequalified)', mk_cert:'Certification & insurance penetration', mk_src:'Data sources', mk_exp:'Expiring documents (60 days)', mk_gap:'Market gaps',
+  mk_turn:'Total turnover', mk_eng:'Engineers', mk_vend:'vendors', mk_gap_txt:'Categories with no prequalified vendor:', mk_fresh:'Data freshness', mk_fresh_txt:'profiles older than 90 days',
+  mo_title:'Scoring models', mo_sub:'Versioned criteria sets. The subcontractor model equals TQS2026006 Rev4; the supplier model is a proposal.',
+  mo_sub_model:'Subcontractor model — Rev4', mo_sup_model:'Supplier model — v1 (proposed)', mo_ko:'Mandatory (KO)', mo_rule:'Calculation rule', mo_classes:'Result classes',
+  r_rubric:'0–3 rubric × max/3', r_bands:'Years: 0→0, ≤3→1, ≤7→2, >7→3', r_thresh:'Threshold table', r_ongoing:'0→25%, ≤3→50%, ≤6→100%, >6→75%', r_leadtime:'≤3 days→100%, ≤7→75%, ≤14→50%, ≤30→25%',
+  in_title:'Data sources & integrations', in_sub:'Vendor data arrives three ways: the Excel form (current process), the portal form, and API from the vendor\'s ERP. Every field keeps its source and timestamp.',
+  in_adapter:'Adapter', in_status:'Status', in_records:'Records', in_last:'Last sync', in_desc:'Description',
+  in_excel:'Excel form import', in_excel_d:'Reads the existing 11-sheet application form, maps fields to codes (A.1…G.7), checks the document list.',
+  in_form:'Vendor portal form', in_form_d:'Same field catalogue; the vendor enters data with validation and document upload.',
+  in_api:'ERP API connectors', in_api_d:'Adapters for 1C, SAP, Odoo and custom REST — turnover, headcount and project lists refresh automatically.',
+  in_reg:'Government registries', in_reg_d:'Automatic check of tax clearance and licence status (planned).',
+  in_perf:'Project performance records', in_perf_d:'Post-award performance (time, quality, HSE) — feeds re-qualification scores.',
+  s_active:'Active', s_planned:'Planned', s_config:'Needs configuration',
+  in_try:'Try the Excel import', in_try_d:'Reads the WESA form file and shows how fields were mapped.', in_run:'Import', in_result:'Mapped fields', in_mapped:'fields mapped', in_docs:'document statuses read', in_warn:'warnings',
+  in_w1:'A.16 certificate date 2020-09-28 — does not meet the 3-month rule, verify', in_w2:'C.t2 ongoing project completion given in two formats (0.95 and 85%) — normalised',
+  vh_title:'Application status', vh_sub:'Where you are in the prequalification process and what comes next.',
+  step_reg:'Registered', step_inv:'Invited', step_app:'Filling form', step_sub:'Submitted', step_rev:'Under review', step_dec:'Decision',
+  vh_result:'Result', vh_valid:'Valid until', vh_next:'Next steps', vh_n1:'Renew your tax clearance certificate (3-month rule).', vh_n2:'ISO 9001 certificate expires 10.12.2026 — upload the renewed copy.', vh_n3:'Confirm your profile data once a year.',
+  vh_class_txt:'Classes: A (90+) invited first priority, B (80–89) invited, C (70–79) conditionally invited.',
+  vp_title:'Company profile', vp_sub:'Stored once for all tenders — no need to re-enter it every time.', vp_save:'Save profile', vp_saved:'Profile saved',
+  va_title:'Prequalification application form', va_sub:'Sections A–G of the existing Excel form. Yellow cells are filled by the vendor; the purple code is the required document.',
+  va_col_q:'Question / indicator', va_col_a:'Answer', va_col_doc:'Document', va_col_unit:'Format', va_yes:'Yes', va_no:'No', va_table:'Table (separate)', va_auto:'auto', va_progress:'Completion',
+  vd_title:'Document package', vd_sub:'Upload each document as a PDF. Applications without mandatory documents are not accepted.', vd_req:'Mandatory', vd_opt:'Optional', vd_status:'Status', vd_ready:'Uploaded', vd_prep:'In preparation', vd_na:'Not applicable', vd_missing:'Not uploaded', vd_upload:'Upload', vd_progress:'Completion', vd_exp:'Valid until',
+  vs_title:'Declaration & submission', vs_sub:'With the director\'s confirmation the application goes to the commission.', vs_decl:'I, the undersigned, confirm that this form and all attached documents are true and accurate.', vs_name:'Director\'s name', vs_pos:'Position', vs_agree:'I agree to the declaration', vs_send:'Submit application', vs_sent:'Application submitted — now under commission review', vs_check:'Pre-submission check', vs_c1:'Mandatory fields completed', vs_c2:'Mandatory documents uploaded', vs_c3:'Mandatory criteria (licence, tax clearance, HSE) answered “Yes”',
+  as_vendor:'View as vendor:', of:'/', pts:'pts', criteria:'criteria',
+  tl1:'Shield — ERP API sync: turnover and headcount refreshed', tl2:'AzGlass Systems (demo) — portal application submitted', tl3:'Gilan (Kila Qrup) — ERP API sync', tl4:'Nur Elektrik (demo) — invitation sent', tl5:'Arti Qrup — A-05 tax clearance expired',
+  att_exp:'documents expired or expiring within 60 days', att_rev:'application awaiting review', att_inc:'applications incomplete — vendor reminder due', att_gap:'categories have no prequalified vendor',
+  none:'—', of100:'/100', packages:'packages', vendors_n:'vendors', show:'Show', months:'mo',
+ }
+});
+
+/* =====================================================================
+   STATE
+   ===================================================================== */
+const TODAY = new Date('2026-08-24');
+const S = { role:'manager', lang:'az', view:'overview', sel:null, proj:null, filter:{type:'all',q:'',cat:'',cls:''}, vendorAs:'V05', edits:{}, status:{}, docStatus:{}, profile:{}, form:{}, submitted:{}, tab:'A' };
+try{ const saved=JSON.parse(localStorage.getItem('vendoriq.v1')||'{}'); Object.assign(S, {lang:saved.lang||S.lang, edits:saved.edits||{}, status:saved.status||{}, docStatus:saved.docStatus||{}, profile:saved.profile||{}, form:saved.form||{}, submitted:saved.submitted||{}}); }catch(e){}
+function persist(){ try{ localStorage.setItem('vendoriq.v1', JSON.stringify({lang:S.lang,edits:S.edits,status:S.status,docStatus:S.docStatus,profile:S.profile,form:S.form,submitted:S.submitted})); }catch(e){} }
+const t = k => (I18N[S.lang][k] ?? I18N.en[k] ?? k);
+const L = pair => Array.isArray(pair) ? (S.lang==='az'?pair[0]:pair[1]) : pair;
+const catName = c => CATS[c] ? CATS[c][S.lang] : c;
+const ALL = () => [...VENDORS, ...DEMO_SUPPLIERS];
+const byId = id => ALL().find(v=>v.id===id);
+const rawOf = v => Object.assign({}, v.raw, S.edits[v.id]||{});
+const statusOf = v => S.status[v.id] || v.status;
+const scoreOf = v => v.type==='sub' ? scoreSubcontractor(rawOf(v)) : scoreGeneric(SUP_CRITERIA, rawOf(v));
+const critOf = v => v.type==='sub' ? SUB_CRITERIA : SUP_CRITERIA;
+const fmt = n => n==null||isNaN(n) ? '—' : Number(n).toLocaleString(S.lang==='az'?'de-DE':'en-US', {maximumFractionDigits:0});
+const fmtM = n => n>=1e6 ? (n/1e6).toFixed(1)+'M' : n>=1e3 ? Math.round(n/1e3)+'k' : String(n);
+const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const clsPill = c => `<span class="cls ${c}">${c==='NA'?'—':c}</span>`;
+const stPill = st => { const m={prequalified:'good',rejected:'crit',incomplete:'warn',under_review:'accent',invited:'neutral',registered:'neutral'}; return `<span class="pill ${m[st]||'neutral'}">${t('st_'+st)}</span>`; };
+const isPrequalified = v => statusOf(v)==='prequalified';
+const daysTo = d => d ? Math.round((new Date(d)-TODAY)/86400000) : null;
+function docState(v, code){ if(!(code in (v.docs||{}))) return 'missing'; const d=v.docs[code]; if(d===null) return 'perm'; const n=daysTo(d); return n<0?'expired':n<=60?'expiring':'valid'; }
+function toast(msg){ const el=document.getElementById('toast'); el.textContent=msg; el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2200); }
+
+/* ---------- matching engine ---------- */
+const CLS_RANK = {A:5,B:4,C:3,D:2,F:1,KO:0,NA:0};
+function matchPackage(pk){
+  const cands = ALL().filter(v=>v.cats.includes(pk.cat) && isPrequalified(v)).map(v=>{
+    const sc=scoreOf(v); const r=rawOf(v);
+    const largest = v.type==='sub' ? (Number(r['C.2'])||0) : (Number(r['B.1'])||0)/4;
+    const capFit = largest >= pk.value*0.4;
+    const certOk = pk.certs.every(c => c==='iso9001' ? (Number(r['C.4'])||Number(r['F.1'])||0)>0 : c==='iso45001' ? (Number(r['F.2'])||0)>0 : true);
+    return {v, sc, largest, capFit, certOk, eligible: sc.ko && CLS_RANK[sc.cls]>=CLS_RANK[pk.minClass] && certOk};
+  }).sort((a,b)=>b.sc.total-a.sc.total);
+  const eligible = cands.filter(c=>c.eligible);
+  const strong = eligible.filter(c=>['A','B'].includes(c.sc.cls) && c.capFit);
+  const state = strong.length>=2 ? 'go' : eligible.length>=1 ? 'cond' : 'nogo';
+  return {cands, eligible, strong, state};
+}
+function matchProject(p){
+  const pks = p.packages.map(pk=>({pk, m:matchPackage(pk)}));
+  const state = pks.some(x=>x.m.state==='nogo') ? 'nogo' : pks.every(x=>x.m.state==='go') ? 'go' : 'cond';
+  const covered = pks.filter(x=>x.m.state!=='nogo').reduce((a,x)=>a+x.pk.value,0);
+  const coverage = p.packages.reduce((a,pk)=>a+pk.value,0);
+  return {pks, state, coveragePct: Math.round(covered/coverage*100)};
+}
+const gonogoPill = st => `<span class="pill ${st==='go'?'good':st==='cond'?'warn':'crit'}">${t(st==='go'?'go':st==='cond'?'cond':'nogo')}</span>`;
+
+/* =====================================================================
+   RENDER
+   ===================================================================== */
+const ICONS = {
+ overview:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="1.5" width="5" height="5" rx="1"/><rect x="9.5" y="1.5" width="5" height="5" rx="1"/><rect x="1.5" y="9.5" width="5" height="5" rx="1"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/></svg>',
+ vendors:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 14V5l6-3 6 3v9"/><path d="M6 14v-4h4v4"/></svg>',
+ apps:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h7l3 3v9H3z"/><path d="M5.5 8.5l1.5 1.5 3.5-3.5"/></svg>',
+ projects:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 13h12"/><path d="M4 13V7h3v6M9 13V3h3v10"/></svg>',
+ market:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>',
+ models:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h8M2 12h10"/></svg>',
+ integrations:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 3H3v3M10 3h3v3M6 13H3v-3M10 13h3v-3"/><circle cx="8" cy="8" r="2"/></svg>',
+ vhome:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/></svg>',
+ vprofile:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5.5" r="3"/><path d="M2.5 14c.5-3 3-4.5 5.5-4.5s5 1.5 5.5 4.5"/></svg>',
+ vapply:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h10v12H3z"/><path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3"/></svg>',
+ vdocs:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg>',
+ vsubmit:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8l12-6-4 12-2-5z"/></svg>',
+};
+const NAV = { manager:[['sec_manage',['overview','vendors','apps','projects']],['sec_intel',['market']],['sec_setup',['models','integrations']]], vendor:[['sec_vendor',['vhome','vprofile','vapply','vdocs','vsubmit']]] };
+const NAV_KEY = {overview:'nav_overview',vendors:'nav_vendors',apps:'nav_apps',projects:'nav_projects',market:'nav_market',models:'nav_models',integrations:'nav_integrations',vhome:'nav_vhome',vprofile:'nav_vprofile',vapply:'nav_vapply',vdocs:'nav_vdocs',vsubmit:'nav_vsubmit'};
+
+function renderRail(){
+  const pending = ALL().filter(v=>statusOf(v)==='under_review').length;
+  let h='';
+  for(const [sec, items] of NAV[S.role]){
+    h+=`<div class="section">${t(sec)}</div><nav>`;
+    for(const it of items){ const active = S.view===it || (it==='vendors'&&S.view==='vendor') || (it==='apps'&&S.view==='evaluate') || (it==='projects'&&S.view==='project');
+      h+=`<button class="${active?'active':''}" data-view="${it}">${ICONS[it]}<span>${t(NAV_KEY[it])}</span>${it==='apps'&&pending?`<span class="cnt">${pending}</span>`:''}</button>`; }
+    h+='</nav>';
+  }
+  if(S.role==='vendor'){ h+=`<div class="section">${t('as_vendor')}</div><div style="padding:4px 18px 8px"><select id="vendorAs" style="width:100%">${VENDORS.filter(v=>['V05','V09','V13','V02'].includes(v.id)).concat(DEMO_SUPPLIERS.slice(2)).map(v=>`<option value="${v.id}" ${S.vendorAs===v.id?'selected':''}>${esc(v.name)}</option>`).join('')}</select></div>`; }
+  document.getElementById('railNav').innerHTML=h;
+  document.getElementById('railFoot').textContent=t('foot');
+  document.querySelectorAll('#railNav button').forEach(b=>b.onclick=()=>{S.view=b.dataset.view; S.sel=null; render();});
+  const va=document.getElementById('vendorAs'); if(va) va.onchange=()=>{S.vendorAs=va.value; render();};
+}
+
+function render(){
+  document.documentElement.lang = S.lang;
+  document.querySelectorAll('#roleSeg button').forEach(b=>{b.classList.toggle('active',b.dataset.role===S.role); b.textContent=t(b.dataset.t);});
+  document.querySelectorAll('#langSeg button').forEach(b=>b.classList.toggle('active',b.dataset.lang===S.lang));
+  renderRail();
+  const views = {overview, vendors, vendor:vendorDetail, apps, evaluate, projects, project:projectDetail, market, models, integrations, vhome, vprofile, vapply, vdocs, vsubmit};
+  const fn = views[S.view] || overview;
+  const c=document.getElementById('content');
+  const out = fn();
+  document.getElementById('pageTitle').textContent = out.title;
+  c.innerHTML = out.html;
+  if(out.after) out.after();
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('#roleSeg button').forEach(b=>b.onclick=()=>{S.role=b.dataset.role; S.view=S.role==='manager'?'overview':'vhome'; S.sel=null; render();});
+document.querySelectorAll('#langSeg button').forEach(b=>b.onclick=()=>{S.lang=b.dataset.lang; persist(); render();});
+
+/* ---------- shared fragments ---------- */
+function head(title, sub, right=''){ return `<div class="page-head"><div><h1 style="font-size:22px">${title}</h1><p>${sub}</p></div><div>${right}</div></div>`; }
+function scoreBars(v){
+  const sc=scoreOf(v); const maxes={}; for(const d of critOf(v)) maxes[d[1]]=(maxes[d[1]]||0)+d[2];
+  return `<div class="bars">${Object.keys(sc.groups).map(g=>`<div class="b"><span>${L(GROUP_LABELS[v.type][g])}</span><div class="bar"><i style="width:${sc.groups[g]/maxes[g]*100}%"></i></div><span class="mono r">${sc.groups[g]}/${maxes[g]}</span></div>`).join('')}</div>`;
+}
+function ring(v){ const sc=scoreOf(v); const col=`var(--c${sc.cls})`; const pct=sc.ko?sc.total:0;
+  return `<div class="gauge"><div class="ring" style="background:conic-gradient(${col} ${pct*3.6}deg, var(--line-2) 0)"><span>${sc.ko?sc.total:'KO'}</span></div><div><div class="eyebrow">${t('total_score')}</div><div style="display:flex;gap:8px;align-items:center;margin-top:4px">${clsPill(sc.cls)}<span class="${sc.ko?'muted':'req'} small">${sc.ko?t('ko_pass'):t('ko_fail')}</span></div><div class="small muted" style="margin-top:2px">${t('pass_mark')}</div></div></div>`; }
+
+/* =====================================================================
+   MANAGER VIEWS
+   ===================================================================== */
+function overview(){
+  const all=ALL(); const pre=all.filter(isPrequalified); const pending=all.filter(v=>statusOf(v)==='under_review'); const inc=all.filter(v=>statusOf(v)==='incomplete');
+  const expDocs=[]; for(const v of all) for(const code in (v.docs||{})){ const st=docState(v,code); if(st==='expired'||st==='expiring') expDocs.push({v,code,st,d:v.docs[code]}); }
+  const classes={A:0,B:0,C:0,D:0,F:0,KO:0}; for(const v of all){ if(statusOf(v)==='prequalified'||statusOf(v)==='rejected'){ classes[scoreOf(v).cls]++; } }
+  const catCov = Object.keys(CATS).map(c=>({c, n:pre.filter(v=>v.cats.includes(c)).length, ab:pre.filter(v=>v.cats.includes(c)&&['A','B'].includes(scoreOf(v).cls)).length}));
+  const gaps = catCov.filter(x=>x.n===0);
+  const maxN=Math.max(1,...catCov.map(x=>x.n));
+  const html = head(t('ov_title'), t('ov_sub')) + `
+  <div class="grid g4">
+    <div class="card kpi"><div class="lbl">${t('k_total')}</div><div class="val">${all.length}</div><div class="sub">${VENDORS.length} ${t('k_sub')} · ${DEMO_SUPPLIERS.length} ${t('k_sup')}</div></div>
+    <div class="card kpi"><div class="lbl">${t('k_preq')}</div><div class="val">${pre.length}</div><div class="sub">${pre.filter(v=>['A','B'].includes(scoreOf(v).cls)).length} ${t('k_classAB')}</div></div>
+    <div class="card kpi"><div class="lbl">${t('k_pending')}</div><div class="val">${pending.length}</div><div class="sub">${inc.length} ${t('k_needs')}</div></div>
+    <div class="card kpi"><div class="lbl">${t('k_exp')}</div><div class="val" style="color:${expDocs.length?'var(--warn)':'inherit'}">${expDocs.length}</div><div class="sub">${expDocs.filter(x=>x.st==='expired').length} ${t('doc_expired').toLowerCase()}</div></div>
+  </div>
+  <div class="grid g32" style="margin-top:16px">
+    <div class="card"><div class="hd"><h2>${t('h_cover')}</h2><span class="legend"><span><i style="background:var(--accent)"></i>${t('f_all')}</span><span><i style="background:var(--good)"></i>A/B</span></span></div><div class="bd bars">
+      ${catCov.map(x=>`<div class="b"><span>${catName(x.c)}</span><div style="display:flex;flex-direction:column;gap:3px"><div class="bar"><i style="width:${x.n/maxN*100}%"></i></div><div class="bar good"><i style="width:${x.ab/maxN*100}%"></i></div></div><span class="mono r">${x.n} · ${x.ab}</span></div>`).join('')}
+    </div></div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="card"><div class="hd"><h2>${t('h_classes')}</h2></div><div class="bd bars">
+        ${Object.keys(classes).map(c=>`<div class="b"><span>${clsPill(c)}</span><div class="bar"><i style="width:${classes[c]/Math.max(1,...Object.values(classes))*100}%;background:var(--c${c})"></i></div><span class="mono r">${classes[c]}</span></div>`).join('')}
+      </div></div>
+      <div class="card"><div class="hd"><h2>${t('h_attention')}</h2></div><div class="bd" style="display:flex;flex-direction:column;gap:8px">
+        ${expDocs.length?`<div class="alert warn"><b>${expDocs.length}</b> ${t('att_exp')}</div>`:''}
+        ${pending.length?`<div class="alert info"><b>${pending.length}</b> ${t('att_rev')}</div>`:''}
+        ${inc.length?`<div class="alert warn"><b>${inc.length}</b> ${t('att_inc')}</div>`:''}
+        ${gaps.length?`<div class="alert crit"><b>${gaps.length}</b> ${t('att_gap')}: ${gaps.map(g=>catName(g.c)).join(', ')}</div>`:''}
+      </div></div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px"><div class="hd"><h2>${t('h_recent')}</h2></div><div class="bd timeline">
+    <div><span class="d">2026-08-22</span><span>${t('tl2')}</span></div><div><span class="d">2026-08-21</span><span>${t('tl3')}</span></div><div><span class="d">2026-08-19</span><span>${t('tl1')}</span></div><div><span class="d">2026-08-10</span><span>${t('tl4')}</span></div><div><span class="d">2026-07-01</span><span>${t('tl5')}</span></div>
+  </div></div>`;
+  return {title:t('ov_title'), html};
+}
+
+function vendorRow(v){ const sc=scoreOf(v); const r=rawOf(v);
+  return `<tr class="row" data-id="${v.id}"><td><b>${esc(v.name)}</b><div class="src">${v.voen||'—'}</div></td><td>${t('type_'+v.type)}</td><td><div class="chips">${v.cats.map(c=>`<span class="chip">${catName(c)}</span>`).join('')}</div></td><td class="r mono">${sc.ko?sc.total:'—'}</td><td>${clsPill(statusOf(v)==='prequalified'||statusOf(v)==='rejected'?sc.cls:'NA')}</td><td>${stPill(statusOf(v))}</td><td class="r mono">${fmt(r['B.1'])}</td><td class="r mono">${v.type==='sub'?(v.staff||'—'):'—'}</td><td><span class="src">${t('src_'+v.source)}</span></td><td class="mono small">${v.updated}</td></tr>`; }
+function vendors(){
+  const f=S.filter; let list=ALL().filter(v=>(f.type==='all'||v.type===f.type)&&(!f.cat||v.cats.includes(f.cat))&&(!f.cls||scoreOf(v).cls===f.cls)&&(!f.q||(v.name+' '+(v.voen||'')).toLowerCase().includes(f.q.toLowerCase())));
+  list.sort((a,b)=>scoreOf(b).total-scoreOf(a).total);
+  const html = head(t('vendors_title'), t('vendors_sub')) + `
+  <div class="card"><div class="hd"><div class="filters">
+    <div class="seg" id="typeSeg">${['all','sub','sup'].map(x=>`<button data-v="${x}" class="${f.type===x?'active':''}">${t('f_'+x)}</button>`).join('')}</div>
+    <input type="text" id="q" placeholder="${t('f_search')}" value="${esc(f.q)}" style="width:220px">
+    <select id="fcat"><option value="">${t('f_cat')}: ${t('f_all')}</option>${Object.keys(CATS).map(c=>`<option value="${c}" ${f.cat===c?'selected':''}>${catName(c)}</option>`).join('')}</select>
+    <select id="fcls"><option value="">${t('f_class')}: ${t('f_all')}</option>${['A','B','C','D','F','KO'].map(c=>`<option ${f.cls===c?'selected':''}>${c}</option>`).join('')}</select>
+  </div><span class="muted small">${list.length} ${t('vendors_n')}</span></div>
+  <div class="bd tight tblwrap"><table><thead><tr><th>${t('th_vendor')}</th><th>${t('th_type')}</th><th>${t('th_cats')}</th><th class="r">${t('th_score')}</th><th>${t('th_class')}</th><th>${t('th_status')}</th><th class="r">${t('th_turnover')}</th><th class="r">${t('th_staff')}</th><th>${t('th_source')}</th><th>${t('th_updated')}</th></tr></thead><tbody>${list.map(vendorRow).join('')}</tbody></table></div></div>
+  <p class="small muted" style="margin-top:10px">${t('cats_note')}</p>`;
+  return {title:t('vendors_title'), html, after(){
+    document.querySelectorAll('#typeSeg button').forEach(b=>b.onclick=()=>{S.filter.type=b.dataset.v; render();});
+    const q=document.getElementById('q'); q.oninput=()=>{S.filter.q=q.value; const tb=document.querySelector('tbody'); render(); document.getElementById('q').focus(); document.getElementById('q').setSelectionRange(99,99);};
+    document.getElementById('fcat').onchange=e=>{S.filter.cat=e.target.value; render();};
+    document.getElementById('fcls').onchange=e=>{S.filter.cls=e.target.value; render();};
+    document.querySelectorAll('tr.row').forEach(r=>r.onclick=()=>{S.sel=r.dataset.id; S.view='vendor'; render();});
+  }};
+}
+
+function vendorDetail(){
+  const v=byId(S.sel); const sc=scoreOf(v); const r=rawOf(v); const d=v.detail;
+  const docRows = DOCS.filter(x=>x[0][0]!=='H').map(x=>{ const st=docState(v,x[0]); const cls=st==='valid'||st==='perm'?'good':st==='expiring'?'warn':st==='expired'?'crit':'neutral';
+    return `<tr><td class="mono">${x[0]}</td><td>${L([x[1],x[2]])}${x[3]?' <span class="req">*</span>':''}</td><td><span class="pill ${cls}">${t('doc_'+st)}</span></td><td class="mono small">${v.docs&&x[0] in v.docs?(v.docs[x[0]]||t('doc_perm')):'—'}</td></tr>`; }).join('');
+  const html = `<button class="btn sm" id="back">${t('back')}</button>
+  <div class="page-head" style="margin-top:12px"><div><div class="eyebrow">${t('type_'+v.type)} · ${v.id}</div><h1>${esc(v.name)}</h1><div class="chips" style="margin-top:6px">${v.cats.map(c=>`<span class="chip">${catName(c)}</span>`).join('')} ${stPill(statusOf(v))}</div></div><div>${ring(v)}</div></div>
+  <div class="grid g32">
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="card"><div class="hd"><h2>${t('v_scores')}</h2><span class="muted small">${v.type==='sub'?'Rev4':'Supplier v1'}</span></div><div class="bd">${scoreBars(v)}
+        <div class="tblwrap" style="margin-top:14px"><table><thead><tr><th>${t('ev_crit')}</th><th class="r">${t('ev_raw')}</th><th class="r">${t('ev_pts')}</th><th class="r">${t('ev_max')}</th></tr></thead><tbody>
+        ${critOf(v).map(c=>`<tr><td><span class="mono muted">${c[0]}</span> ${L(CRIT_LABELS[v.type][c[0]])}${c[5]?' <span class="req">KO</span>':''}</td><td class="r mono">${c[3]==='rubric'?(r[c[0]]??'—')+' / 3':fmt(r[c[0]])}</td><td class="r mono" style="color:${sc.per[c[0]]===0?'var(--crit)':'inherit'}">${sc.per[c[0]]}</td><td class="r mono muted">${c[2]}</td></tr>`).join('')}
+        </tbody></table></div></div></div>
+      ${d?`<div class="card"><div class="hd"><h2>${t('v_projects')}</h2></div><div class="bd tight tblwrap"><table><thead><tr><th>#</th><th>${S.lang==='az'?'Layihə':'Project'}</th><th>${t('th_client')}</th><th>${S.lang==='az'?'İllər':'Years'}</th><th class="r">${t('th_value')}</th><th>${t('f_cat')}</th></tr></thead><tbody>
+        ${d.projects.map((p,i)=>`<tr><td class="mono muted">${i+1}</td><td>${esc(p[0])}</td><td>${esc(p[1])}</td><td class="mono">${p[2]}–${p[3]}</td><td class="r mono">${fmt(p[4])}</td><td><span class="chip">${catName(p[5])}</span></td></tr>`).join('')}
+        ${d.ongoing.map((p,i)=>`<tr style="background:var(--accent-soft)"><td class="mono muted">▶</td><td>${esc(p[0])}</td><td>${esc(p[1])}</td><td class="mono">${p[2]}–${p[3]} · ${p[4]}%</td><td class="r mono">${fmt(p[5])}</td><td></td></tr>`).join('')}
+      </tbody></table></div></div>`:''}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="card"><div class="hd"><h2>${t('v_profile')}</h2></div><div class="bd"><dl class="two">
+        <dt>${t('d_voen')}</dt><dd class="mono">${v.voen||'—'}</dd><dt>${t('d_reg')}</dt><dd>${v.regYear||'—'}</dd>
+        <dt>${t('d_contact')}</dt><dd>${esc(v.contact||'—')}${v.position?` · ${esc(v.position)}`:''}</dd><dt>${t('d_phone')}</dt><dd class="mono">${esc(v.phone||'—')}</dd>
+        <dt>${t('d_email')}</dt><dd style="word-break:break-all">${esc(v.email||'—')}</dd><dt>${t('d_web')}</dt><dd>${esc(v.website||'—')}</dd>
+        <dt>${t('d_staff')}</dt><dd>${v.staff??'—'}</dd><dt>${t('d_eng')}</dt><dd>${v.engineers??'—'}</dd>
+        <dt>${t('d_source')}</dt><dd>${t('src_'+v.source)}</dd><dt>${t('d_updated')}</dt><dd class="mono">${v.updated}</dd>
+        <dt style="grid-column:1/-1">${t('d_addr')}</dt><dd style="grid-column:1/-1">${esc(v.address||v.region||'—')}</dd></dl>
+        ${d?`<div class="small muted" style="margin-top:6px">${S.lang==='az'?'Dövriyyə (3 il)':'Turnover (3y)'}: <span class="mono">${d.turnover.map(fmt).join(' · ')}</span><br>${S.lang==='az'?'Likvidlik':'Current ratio'}: <span class="mono">${(d.currentAssets/d.currentLiab).toFixed(2)}</span> · ${S.lang==='az'?'Kredit xətti':'Credit line'}: <span class="mono">${fmt(d.creditLine)}</span> (${esc(d.banks)})<br>ISO 9001: <span class="mono">${d.iso9001}</span> · ${S.lang==='az'?'Lisenziya':'Licence'}: <span class="mono">${d.license}</span></div>`:''}
+      </div></div>
+      <div class="card"><div class="hd"><h2>${t('v_docs')}</h2></div><div class="bd tight tblwrap" style="max-height:420px;overflow:auto"><table><thead><tr><th>Kod</th><th>${t('ev_evidence')}</th><th>${t('vd_status')}</th><th>${t('vd_exp')}</th></tr></thead><tbody>${docRows}</tbody></table></div></div>
+      <div class="card"><div class="hd"><h2>${t('v_history')}</h2></div><div class="bd timeline">${(v.history||[{cycle:'2026 periodic',date:v.updated,total:sc.total}]).map(h=>`<div><span class="d">${h.date}</span><span>${h.cycle} — <b class="mono">${h.total??'—'}</b></span></div>`).join('')}</div></div>
+    </div>
+  </div>`;
+  return {title:esc(v.name), html, after(){ document.getElementById('back').onclick=()=>{S.view='vendors'; S.sel=null; render();}; }};
+}
+
+function apps(){
+  const list=ALL().map(v=>({v, sc:scoreOf(v), st:statusOf(v)})).sort((a,b)=>({under_review:0,incomplete:1,invited:2,prequalified:3,rejected:4}[a.st]-{under_review:0,incomplete:1,invited:2,prequalified:3,rejected:4}[b.st]));
+  const html = head(t('apps_title'), t('apps_sub')) + `<div class="card"><div class="bd tight tblwrap"><table><thead><tr><th>${t('th_vendor')}</th><th>${t('th_cycle')}</th><th>${t('th_submitted')}</th><th>${t('th_status')}</th><th class="r">${t('th_score')}</th><th>${t('th_decision')}</th><th>${t('th_evaluator')}</th></tr></thead><tbody>
+  ${list.map(({v,sc,st})=>`<tr class="row" data-id="${v.id}"><td><b>${esc(v.name)}</b><div class="src">${t('type_'+v.type)}</div></td><td class="mono small">${v.type==='sub'?'TQS2026006':'2026 periodic'}</td><td class="mono small">${v.updated}</td><td>${stPill(st)}</td><td class="r mono">${sc.ko?sc.total:'KO'}</td><td>${st==='prequalified'||st==='rejected'?clsPill(sc.cls):'<span class="muted">—</span>'}</td><td class="small muted">${st==='under_review'||st==='invited'||st==='incomplete'?'—':'Komissiya / Ə. Məmmədov'}</td></tr>`).join('')}
+  </tbody></table></div></div>`;
+  return {title:t('apps_title'), html, after(){ document.querySelectorAll('tr.row').forEach(r=>r.onclick=()=>{S.sel=r.dataset.id; S.view='evaluate'; render();}); }};
+}
+
+function evaluate(){
+  const v=byId(S.sel); const CR=critOf(v); const r=rawOf(v); const sc=scoreOf(v);
+  const docFor={'A.1':'A-04','A.4':'A-05','A.3':'A-03','B.3':'B-03','B.4':'B-04','C.4':'C-02','D.1':'D-01','D.2':'D-02','D.3':'D-03','E.3':'E-03','E.4':'E-04','F.1':'F-01','F.2':'F-03/F-04','F.3':'F-05','G.1':'G-01','G.2':'G-02','B.1':'B-01','B.2':'B-02','C.1':'C-01','C.2':'C-01','C.3':'C-01','E.1':'E-01','E.2':'E-02','A.2':'A-02'};
+  let rows=''; let lastG='';
+  for(const c of CR){ if(c[1]!==lastG){ lastG=c[1]; rows+=`<div class="score-row"><div class="grp">${c[1]}. ${L(GROUP_LABELS[v.type][c[1]])} <span class="muted mono small" style="margin-left:6px">${sc.groups[c[1]]} / ${CR.filter(x=>x[1]===c[1]).reduce((a,x)=>a+x[2],0)}</span></div></div>`; }
+    const isR = c[3]==='rubric';
+    rows+=`<div class="score-row"><span class="mono muted">${c[0]}</span><span>${L(CRIT_LABELS[v.type][c[0]])}${c[5]?' <span class="req">KO</span>':''}<div class="src">${docFor[c[0]]||'—'}${UNITS[v.type][c[0]]?' · '+UNITS[v.type][c[0]]:''}</div></span>
+      <span>${isR?`<input type="number" min="0" max="3" step="1" data-code="${c[0]}" value="${r[c[0]]??''}" style="background:var(--warn-soft)">`:`<input type="number" data-code="${c[0]}" value="${r[c[0]]??''}" style="background:var(--warn-soft)">`}</span>
+      <span class="mono r" style="text-align:right;color:${sc.per[c[0]]===0?'var(--crit)':'inherit'}"><b>${sc.per[c[0]]}</b> <span class="muted">/ ${c[2]}</span></span><span class="bar" style="align-self:center"><i style="width:${sc.per[c[0]]/c[2]*100}%;background:${sc.per[c[0]]===0?'var(--crit)':'var(--accent)'}"></i></span></div>`; }
+  const st=statusOf(v);
+  const html = `<button class="btn sm" id="back">${t('back')}</button>
+  <div class="page-head" style="margin-top:12px"><div><div class="eyebrow">${t('ev_title')} · ${v.type==='sub'?'TQS2026006 · Rev4':'2026 periodic · Supplier v1'}</div><h1>${esc(v.name)}</h1><p>${t('ev_sub')}</p></div><div>${ring(v)}</div></div>
+  <div class="grid g32">
+    <div class="card"><div class="hd"><h2>${t('ev_crit')}</h2><div style="display:flex;gap:6px"><button class="btn sm" id="reset">${t('ev_reset')}</button><button class="btn sm primary" id="save">${t('ev_save')}</button></div></div><div class="bd">
+      <div class="score-row" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600"><span>Kod</span><span>${t('ev_crit')}</span><span>${t('ev_raw')}</span><span style="text-align:right">${t('ev_pts')}</span><span></span></div>${rows}</div></div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="card"><div class="hd"><h2>${t('ev_decision')}</h2>${stPill(st)}</div><div class="bd">
+        ${scoreBars(v)}
+        <div style="margin-top:14px" class="${sc.ko?'alert good':'alert crit'}">${sc.ko?`${t('ko_pass')} · ${clsPill(sc.cls)} <b class="mono">${sc.total}${t('of100')}</b>`:t('ko_fail')}</div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">
+          <button class="btn good" id="approve" ${!sc.ko||sc.total<70?'disabled':''}>${t('ev_approve')}</button>
+          <button class="btn" id="info">${t('ev_info')}</button>
+          <button class="btn crit" id="reject">${t('ev_reject')}</button>
+        </div></div></div>
+      <div class="card"><div class="hd"><h2>${t('mo_classes')}</h2></div><div class="bd small">
+        <table><tbody><tr><td>${clsPill('A')}</td><td>90–100</td><td>${S.lang==='az'?'Dəvət — birinci prioritet':'Invite — first priority'}</td></tr><tr><td>${clsPill('B')}</td><td>80–89</td><td>${S.lang==='az'?'Dəvət':'Invite'}</td></tr><tr><td>${clsPill('C')}</td><td>70–79</td><td>${S.lang==='az'?'Şərti dəvət':'Conditional invite'}</td></tr><tr><td>${clsPill('D')}</td><td>60–69</td><td>${S.lang==='az'?'Dəvət edilmir':'Not invited'}</td></tr><tr><td>${clsPill('F')}</td><td>0–59</td><td>${S.lang==='az'?'Rədd':'Reject'}</td></tr><tr><td>${clsPill('KO')}</td><td>—</td><td>${S.lang==='az'?'Məcburi meyar 0 → avtomatik rədd':'Mandatory criterion 0 → automatic reject'}</td></tr></tbody></table>
+      </div></div>
+    </div>
+  </div>`;
+  return {title:t('ev_title'), html, after(){
+    document.getElementById('back').onclick=()=>{S.view='apps'; S.sel=null; render();};
+    document.querySelectorAll('input[data-code]').forEach(i=>i.onchange=()=>{ S.edits[v.id]=S.edits[v.id]||{}; S.edits[v.id][i.dataset.code]=i.value===''?0:Number(i.value); render(); });
+    document.getElementById('save').onclick=()=>{persist(); toast(t('ev_saved'));};
+    document.getElementById('reset').onclick=()=>{delete S.edits[v.id]; persist(); render();};
+    document.getElementById('approve').onclick=()=>{S.status[v.id]='prequalified'; persist(); toast(t('ev_approved')); render();};
+    document.getElementById('reject').onclick=()=>{S.status[v.id]='rejected'; persist(); toast(t('ev_rejected')); render();};
+    document.getElementById('info').onclick=()=>{S.status[v.id]='incomplete'; persist(); toast(t('ev_info_sent')); render();};
+  }};
+}
+
+function projects(){
+  const html = head(t('proj_title'), t('proj_sub')) + `<div class="card"><div class="bd tight tblwrap"><table><thead><tr><th>${t('th_project')}</th><th>${t('th_client')}</th><th>${t('th_stage')}</th><th class="r">${t('th_value')}</th><th class="r">${t('th_packages')}</th><th>${t('th_coverage')}</th><th>${t('th_gonogo')}</th><th>${t('th_deadline')}</th></tr></thead><tbody>
+  ${PROJECTS.map(p=>{ const m=matchProject(p); return `<tr class="row" data-id="${p.id}"><td><b>${esc(p.name)}</b><div class="src">${p.code}</div></td><td>${esc(p.client)}</td><td><span class="pill neutral">${t('stage_'+p.stage)}</span></td><td class="r mono">${fmt(p.value)}</td><td class="r mono">${p.packages.length}</td><td><div style="display:flex;align-items:center;gap:8px"><div class="bar ${m.state==='go'?'good':m.state==='cond'?'warn':'crit'}" style="width:90px"><i style="width:${m.coveragePct}%"></i></div><span class="mono small">${m.coveragePct}%</span></div></td><td>${gonogoPill(m.state)}</td><td class="mono small">${p.deadline}</td></tr>`; }).join('')}
+  </tbody></table></div></div>
+  <div class="alert info" style="margin-top:14px">${t('m_rule')}</div>`;
+  return {title:t('proj_title'), html, after(){ document.querySelectorAll('tr.row').forEach(r=>r.onclick=()=>{S.proj=r.dataset.id; S.view='project'; render();}); }};
+}
+function projectDetail(){
+  const p=PROJECTS.find(x=>x.id===S.proj); const m=matchProject(p);
+  const rec = t(m.state==='go'?'m_rec_go':m.state==='cond'?'m_rec_cond':'m_rec_nogo');
+  const html = `<button class="btn sm" id="back">${t('back')}</button>
+  <div class="page-head" style="margin-top:12px"><div><div class="eyebrow">${p.code} · ${t('stage_'+p.stage)} · ${esc(p.client)}</div><h1>${esc(p.name)}</h1><p>${fmt(p.value)} AZN · ${p.packages.length} ${t('packages')} · ${t('th_deadline')} ${p.deadline}</p></div>
+    <div class="card" style="padding:12px 16px;display:flex;align-items:center;gap:14px"><div><div class="eyebrow">${t('th_gonogo')}</div><div style="margin-top:4px;font-family:var(--fh);font-size:22px;font-weight:700;color:${m.state==='go'?'var(--good)':m.state==='cond'?'var(--warn)':'var(--crit)'}">${t(m.state==='go'?'go':m.state==='cond'?'cond':'nogo')}</div></div><div style="border-left:1px solid var(--line);padding-left:14px"><div class="eyebrow">${t('th_coverage')}</div><div class="mono" style="font-size:22px;font-weight:600">${m.coveragePct}%</div></div></div></div>
+  <div class="alert ${m.state==='go'?'good':m.state==='cond'?'warn':'crit'}"><b>${t('m_recommend')}:</b> ${rec}</div>
+  <div style="display:flex;flex-direction:column;gap:14px;margin-top:16px">
+  ${m.pks.map(({pk,m:pm})=>`<div class="card"><div class="hd"><div><h2>${catName(pk.cat)} <span class="muted mono" style="font-weight:400;font-size:13px;margin-left:8px">${fmt(pk.value)} AZN</span></h2><div class="small muted">${t('m_min')}: ${clsPill(pk.minClass)} ${pk.certs.length?'· '+pk.certs.map(c=>c.toUpperCase().replace('ISO','ISO ')).join(', '):''} · ${t('m_cands')}: <b>${pm.eligible.length}</b> · ${t('m_strong')}: <b>${pm.strong.length}</b></div></div>${gonogoPill(pm.state)}</div>
+    <div class="bd tight tblwrap">${pm.cands.length?`<table><thead><tr><th>${t('th_vendor')}</th><th class="r">${t('th_score')}</th><th>${t('th_class')}</th><th class="r">${S.lang==='az'?'Ən böyük layihə':'Largest project'}</th><th>${t('m_fit')}</th><th>${t('th_status')}</th></tr></thead><tbody>
+      ${pm.cands.map(c=>`<tr style="opacity:${c.eligible?1:.5}"><td><b>${esc(c.v.name)}</b></td><td class="r mono">${c.sc.total}</td><td>${clsPill(c.sc.cls)}</td><td class="r mono">${fmt(c.largest)}</td><td><span class="pill ${c.capFit?'good':'warn'}">${c.capFit?t('m_capfit_ok'):t('m_capfit_no')}</span></td><td>${c.eligible?'<span class="pill good">✓</span>':`<span class="pill crit">${!c.certOk?'cert':'class'}</span>`}</td></tr>`).join('')}</tbody></table>`:`<div class="bd"><div class="alert crit">${t('m_none')}</div></div>`}</div></div>`).join('')}
+  </div>`;
+  return {title:esc(p.name), html, after(){ document.getElementById('back').onclick=()=>{S.view='projects'; render();}; }};
+}
+
+function market(){
+  const all=ALL(); const pre=all.filter(isPrequalified);
+  const cats=Object.keys(CATS); const CL=['A','B','C','D','F','KO'];
+  const cell=(c,k)=>all.filter(v=>v.cats.includes(c)&&(statusOf(v)==='prequalified'||statusOf(v)==='rejected')&&scoreOf(v).cls===k).length;
+  const heat=`<table class="heat"><thead><tr><th>${t('f_cat')}</th>${CL.map(k=>`<th style="text-align:center">${k}</th>`).join('')}<th class="r">Σ</th></tr></thead><tbody>${cats.map(c=>{ const row=CL.map(k=>cell(c,k)); const s=row.reduce((a,b)=>a+b,0); return `<tr><td style="text-align:left;font-family:var(--fb)">${catName(c)}</td>${row.map(n=>`<td class="h${Math.min(3,n)}">${n||''}</td>`).join('')}<td class="r"><b>${s}</b></td></tr>`; }).join('')}</tbody></table>`;
+  const cap=cats.map(c=>{ const vs=pre.filter(v=>v.cats.includes(c)); return {c, n:vs.length, turn:vs.reduce((a,v)=>a+(Number(rawOf(v)['B.1'])||0),0), eng:vs.reduce((a,v)=>a+(v.engineers||0),0)}; }).filter(x=>x.n);
+  const maxT=Math.max(1,...cap.map(x=>x.turn));
+  const subsPre=pre.filter(v=>v.type==='sub'); const pen=k=>subsPre.length?Math.round(subsPre.filter(v=>(Number(rawOf(v)[k])||0)>0).length/subsPre.length*100):0;
+  const certs=[['ISO 9001','C.4'],['ISO 14001/45001','F.2'],[S.lang==='az'?'Məsuliyyət sığortası':'Liability insurance','G.1'],[S.lang==='az'?'Auditdən keçmiş hesabat':'Audited statements','B.4'],[S.lang==='az'?'Tam ştatlı SƏTƏMM':'Full-time HSE','E.3']];
+  const src={}; for(const v of all) src[v.source]=(src[v.source]||0)+1;
+  const stale=all.filter(v=>daysTo(v.updated)<-90).length;
+  const expDocs=[]; for(const v of all) for(const code in (v.docs||{})){ const st=docState(v,code); if(st==='expired'||st==='expiring') expDocs.push({v,code,st,d:v.docs[code]}); }
+  const gaps=cats.filter(c=>!pre.some(v=>v.cats.includes(c)));
+  const html = head(t('mk_title'), t('mk_sub')) + `<div class="grid g2">
+    <div class="card"><div class="hd"><h2>${t('mk_heat')}</h2></div><div class="bd tight tblwrap">${heat}</div></div>
+    <div class="card"><div class="hd"><h2>${t('mk_cap')}</h2></div><div class="bd bars">${cap.map(x=>`<div class="b" style="grid-template-columns:150px 1fr 120px"><span>${catName(x.c)} <span class="muted small">(${x.n})</span></span><div class="bar"><i style="width:${x.turn/maxT*100}%"></i></div><span class="mono r small">${fmtM(x.turn)} · ${x.eng} ${t('mk_eng').toLowerCase()}</span></div>`).join('')}</div></div>
+    <div class="card"><div class="hd"><h2>${t('mk_cert')}</h2><span class="muted small">${subsPre.length} ${t('k_sub')}</span></div><div class="bd bars">${certs.map(([n,k])=>`<div class="b"><span>${n}</span><div class="bar good"><i style="width:${pen(k)}%"></i></div><span class="mono r">${pen(k)}%</span></div>`).join('')}</div></div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="card"><div class="hd"><h2>${t('mk_gap')}</h2></div><div class="bd">${gaps.length?`<p class="small muted">${t('mk_gap_txt')}</p><div class="chips" style="margin-top:8px">${gaps.map(c=>`<span class="chip" style="background:var(--crit-soft);color:var(--crit)">${catName(c)}</span>`).join('')}</div>`:'—'}</div></div>
+      <div class="card"><div class="hd"><h2>${t('mk_src')}</h2></div><div class="bd"><div class="stat-row">${Object.keys(src).map(k=>`<div><b>${src[k]}</b><span class="small muted">${t('src_'+k)}</span></div>`).join('')}<div><b style="color:${stale?'var(--warn)':'inherit'}">${stale}</b><span class="small muted">${t('mk_fresh_txt')}</span></div></div></div></div>
+    </div>
+    <div class="card" style="grid-column:1/-1"><div class="hd"><h2>${t('mk_exp')}</h2></div><div class="bd tight tblwrap"><table><thead><tr><th>${t('th_vendor')}</th><th>Kod</th><th>${t('ev_evidence')}</th><th>${t('vd_exp')}</th><th>${t('vd_status')}</th></tr></thead><tbody>${expDocs.sort((a,b)=>new Date(a.d)-new Date(b.d)).map(x=>{ const D=DOCS.find(d=>d[0]===x.code); return `<tr><td><b>${esc(x.v.name)}</b></td><td class="mono">${x.code}</td><td>${L([D[1],D[2]])}</td><td class="mono">${x.d}</td><td><span class="pill ${x.st==='expired'?'crit':'warn'}">${t('doc_'+x.st)} (${daysTo(x.d)} d)</span></td></tr>`; }).join('')}</tbody></table></div></div>
+  </div>`;
+  return {title:t('mk_title'), html};
+}
+
+function models(){
+  const table=(CR,type,title)=>`<div class="card"><div class="hd"><h2>${title}</h2><span class="muted small">${CR.length} ${t('criteria')} · 100 ${t('pts')}</span></div><div class="bd tight tblwrap"><table><thead><tr><th>Kod</th><th>${t('ev_crit')}</th><th class="r">${t('ev_max')}</th><th>${t('mo_rule')}</th><th>${t('mo_ko')}</th></tr></thead><tbody>
+    ${Object.keys(GROUP_LABELS[type]).map(g=>`<tr style="background:var(--paper)"><td class="mono"><b>${g}</b></td><td colspan="2"><b>${L(GROUP_LABELS[type][g])}</b></td><td class="mono r" colspan="2">${CR.filter(c=>c[1]===g).reduce((a,c)=>a+c[2],0)} ${t('pts')}</td></tr>`+CR.filter(c=>c[1]===g).map(c=>{ let rule=t('r_'+c[3]); if(c[3]==='thresh') rule+=`: ${c[4].cuts.map(([lim,f])=>`<${fmtM(lim)}→${Math.round(f*100)}%`).join(', ')}, ≥→100%`; return `<tr><td class="mono muted">${c[0]}</td><td>${L(CRIT_LABELS[type][c[0]])}</td><td class="r mono">${c[2]}</td><td class="small muted">${rule}</td><td>${c[5]?'<span class="pill crit">KO</span>':''}</td></tr>`; }).join('')).join('')}
+  </tbody></table></div></div>`;
+  const html = head(t('mo_title'), t('mo_sub')) + `<div class="grid g2">${table(SUB_CRITERIA,'sub',t('mo_sub_model'))}${table(SUP_CRITERIA,'sup',t('mo_sup_model'))}</div>`;
+  return {title:t('mo_title'), html};
+}
+
+function integrations(){
+  const rows=[['in_excel','s_active',13,'2026-04-28'],['in_form','s_active',3,'2026-08-22'],['in_api','s_config',2,'2026-08-21'],['in_reg','s_planned',0,'—'],['in_perf','s_planned',0,'—']];
+  const html = head(t('in_title'), t('in_sub')) + `<div class="card"><div class="bd tight tblwrap"><table><thead><tr><th>${t('in_adapter')}</th><th>${t('in_desc')}</th><th>${t('in_status')}</th><th class="r">${t('in_records')}</th><th>${t('in_last')}</th></tr></thead><tbody>
+  ${rows.map(r=>`<tr><td><b>${t(r[0])}</b></td><td class="small" style="max-width:52ch">${t(r[0]+'_d')}</td><td><span class="pill ${r[1]==='s_active'?'good':r[1]==='s_config'?'warn':'neutral'}">${t(r[1])}</span></td><td class="r mono">${r[2]}</td><td class="mono small">${r[3]}</td></tr>`).join('')}</tbody></table></div></div>
+  <div class="card" style="margin-top:16px"><div class="hd"><div><h2>${t('in_try')}</h2><p class="small muted">${t('in_try_d')}</p></div><button class="btn primary" id="runImport">${t('in_run')}</button></div><div class="bd hide" id="importOut"></div></div>`;
+  return {title:t('in_title'), html, after(){ document.getElementById('runImport').onclick=()=>{ const w=VENDORS.find(v=>v.id==='V05'); const d=w.detail; const out=document.getElementById('importOut'); out.classList.remove('hide');
+    const mapped=[['A.1',w.name],['A.3',w.voen],['A.4',w.regYear],['A.11','Var → A.1 = 3'],['A.12',d.license],['A.15','Var → A.4 = 3'],['B.1–B.3',d.turnover.map(fmt).join(' / ')],['B.4 (auto)',fmt(d.turnover.reduce((a,b)=>a+b)/3)+' → B.1 raw'],['B.5',fmt(d.equity)+' → B.2 raw'],['B.8 (auto)',(d.currentAssets/d.currentLiab).toFixed(2)],['B.9/B.10',fmt(d.creditLine)+' ('+d.banks+') → B.3 = 3'],['B.12',d.auditor+' → B.4 = 3'],['C.t1','10 → C.1 = 10; max '+fmt(6140000)+' → C.2'],['C.t2','2 → C.3'],['C.1',d.iso9001+' → C.4 = 3'],['E.1',w.staff],['E.4–E.9',w.engineers+' → E.2']];
+    out.innerHTML=`<div class="stat-row" style="margin-bottom:12px"><div><b>${mapped.length+22}</b><span class="small muted">${t('in_mapped')}</span></div><div><b>38</b><span class="small muted">${t('in_docs')}</span></div><div><b style="color:var(--warn)">2</b><span class="small muted">${t('in_warn')}</span></div></div><div class="alert warn small" style="margin-bottom:6px">${t('in_w1')}</div><div class="alert warn small" style="margin-bottom:12px">${t('in_w2')}</div><div class="tblwrap"><table><thead><tr><th>${t('va_col_q')}</th><th>${t('in_result')}</th></tr></thead><tbody>${mapped.map(m=>`<tr><td class="mono">${m[0]}</td><td>${esc(m[1])}</td></tr>`).join('')}</tbody></table></div>`; toast('WESA_Prekvalifikasiya_Muraciet_Formasi.xlsx → V05'); }; }};
+}
+
+/* =====================================================================
+   VENDOR PORTAL VIEWS
+   ===================================================================== */
+function me(){ return byId(S.vendorAs); }
+function vhome(){
+  const v=me(); const sc=scoreOf(v); const st=S.submitted[v.id]?'under_review':statusOf(v);
+  const steps=['step_reg','step_inv','step_app','step_sub','step_rev','step_dec']; const idx={registered:0,invited:1,incomplete:2,under_review:4,prequalified:5,rejected:5}[st];
+  const decided = st==='prequalified'||st==='rejected';
+  const html = head(t('vh_title'), t('vh_sub')) + `<div class="card"><div class="bd"><div class="stepper">${steps.map((s,i)=>`<div class="${i<idx?'done':i===idx?'cur':''}">${t(s)}</div>`).join('')}</div></div></div>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card"><div class="hd"><h2>${t('vh_result')}</h2>${stPill(st)}</div><div class="bd">${decided?`${ring(v)}<div style="margin-top:14px">${scoreBars(v)}</div><p class="small muted" style="margin-top:12px">${t('vh_class_txt')}</p>${st==='prequalified'?`<p class="small" style="margin-top:6px"><b>${t('vh_valid')}:</b> <span class="mono">2027-04-28</span></p>`:''}`:`<p class="muted">${t('st_'+st)}</p>`}</div></div>
+    <div class="card"><div class="hd"><h2>${t('vh_next')}</h2></div><div class="bd" style="display:flex;flex-direction:column;gap:8px">
+      ${docState(v,'A-05')!=='valid'?`<div class="alert warn">${t('vh_n1')}</div>`:''}${v.id==='V05'?`<div class="alert info">${t('vh_n2')}</div>`:''}<div class="alert info">${t('vh_n3')}</div></div></div>
+  </div>`;
+  return {title:t('vh_title'), html};
+}
+function vprofile(){
+  const v=me(); const P=Object.assign({name:v.name,voen:v.voen,regYear:v.regYear,address:v.address||'',contact:v.contact||'',position:v.position||'',phone:v.phone||'',email:v.email||'',website:v.website||'',cats:v.cats}, S.profile[v.id]||{});
+  const F=(k,lbl,type='text')=>`<div class="field"><label>${lbl}</label><input type="${type}" data-k="${k}" value="${esc(P[k]??'')}"></div>`;
+  const html = head(t('vp_title'), t('vp_sub'), `<button class="btn primary" id="save">${t('vp_save')}</button>`) + `<div class="card"><div class="bd grid g2">
+    ${F('name',FORM.A.rows[0][S.lang==='az'?1:2])}${F('voen','VÖEN')}${F('regYear',FORM.A.rows[3][S.lang==='az'?1:2],'number')}${F('website',FORM.A.rows[9][S.lang==='az'?1:2])}
+    <div class="field" style="grid-column:1/-1"><label>${FORM.A.rows[4][S.lang==='az'?1:2]}</label><input type="text" data-k="address" value="${esc(P.address)}"></div>
+    ${F('contact',FORM.A.rows[5][S.lang==='az'?1:2])}${F('position',FORM.A.rows[6][S.lang==='az'?1:2])}${F('phone',FORM.A.rows[7][S.lang==='az'?1:2])}${F('email',FORM.A.rows[8][S.lang==='az'?1:2])}
+    <div class="field" style="grid-column:1/-1"><label>${t('th_cats')}</label><div class="chips" style="gap:8px">${Object.keys(CATS).map(c=>`<label class="chip" style="cursor:pointer;padding:5px 9px;${P.cats.includes(c)?'background:var(--accent-soft);color:var(--accent)':''}"><input type="checkbox" data-cat="${c}" ${P.cats.includes(c)?'checked':''} style="margin-right:5px">${catName(c)}</label>`).join('')}</div></div>
+  </div></div>`;
+  return {title:t('vp_title'), html, after(){ document.getElementById('save').onclick=()=>{ const o=S.profile[v.id]||{}; document.querySelectorAll('input[data-k]').forEach(i=>o[i.dataset.k]=i.value); o.cats=[...document.querySelectorAll('input[data-cat]:checked')].map(i=>i.dataset.cat); S.profile[v.id]=o; v.cats=o.cats; persist(); toast(t('vp_saved')); render(); }; }};
+}
+function vapply(){
+  const v=me(); const sec=FORM[S.tab]; const A=S.form[v.id]||{};
+  const prefill = {'A.1':v.name,'A.3':v.voen,'A.4':v.regYear,'A.5':v.address,'A.6':v.contact,'A.7':v.position,'A.8':v.phone,'A.9':v.email,'A.10':v.website};
+  if(v.detail){ Object.assign(prefill,{'A.2':'3-21-2-2-1/2-28732/2026','A.11':'y','A.12':v.detail.license,'A.13':'2020-09-28','A.15':'y','A.17':'MMC','A.18':3,'A.19':20,'B.1':v.detail.turnover[0],'B.2':v.detail.turnover[1],'B.3':v.detail.turnover[2],'B.5':v.detail.equity,'B.6':v.detail.currentAssets,'B.7':v.detail.currentLiab,'B.9':'y','B.10':v.detail.creditLine,'B.11':v.detail.banks,'B.12':'y','B.13':v.detail.auditor,'C.1':'y','C.2':'I1731076497Q','C.3':'2026-12-10','E.1':80,'E.5':10,'E.12':'y','F.1':'y','F.5':'y','F.8':'y','G.1':'y'}); }
+  const val=k=>A[k]??prefill[k]??'';
+  let total=0, filled=0; for(const s of Object.values(FORM)) for(const r of s.rows){ if(r[0]==='#'||r[3]==='calc') continue; total++; if(val(r[0])!=='') filled++; }
+  const calc=k=>k==='B.4'?fmt((Number(val('B.1'))+Number(val('B.2'))+Number(val('B.3')))/3):k==='B.8'?(Number(val('B.7'))?(Number(val('B.6'))/Number(val('B.7'))).toFixed(2):'—'):'';
+  const rows=sec.rows.map(r=>{ if(r[0]==='#') return `<div class="formsec"><div class="sub">${L([r[1],r[2]])}</div></div>`;
+    const lbl=L([r[1],r[2]]); const inp = r[3]==='yn'?`<select data-f="${r[0]}"><option value=""></option><option value="y" ${val(r[0])==='y'?'selected':''}>${t('va_yes')}</option><option value="n" ${val(r[0])==='n'?'selected':''}>${t('va_no')}</option></select>`
+      : r[3]==='calc'?`<input type="text" value="${calc(r[0])}" disabled style="background:var(--line-2)">` : r[3]==='table'?`<button class="btn sm">${t('va_table')}</button>` : `<input type="${r[3]==='number'?'number':r[3]==='date'?'date':'text'}" data-f="${r[0]}" value="${esc(val(r[0]))}" style="background:var(--warn-soft)">`;
+    return `<div class="formsec"><span class="mono muted">${r[0]}</span><span>${lbl.replace('⚠','<span class="req">⚠</span>')}</span><span class="small muted">${r[3]==='yn'?t('va_yes')+'/'+t('va_no'):r[3]==='calc'?t('va_auto'):r[3]}</span><span>${inp}</span><span class="mono small" style="color:var(--doc)">${r[4]}</span></div>`; }).join('');
+  const html = head(t('va_title'), t('va_sub'), `<div class="small muted">${t('va_progress')}: <b class="mono">${filled}/${total}</b></div><div class="bar" style="width:180px;margin-top:4px"><i style="width:${filled/total*100}%"></i></div>`) + `<div class="card"><div class="tabs">${Object.keys(FORM).map(k=>`<button class="${S.tab===k?'active':''}" data-tab="${k}">${L([FORM[k].az,FORM[k].en])}</button>`).join('')}</div><div class="bd">
+    <div class="formsec head"><span>№</span><span>${t('va_col_q')}</span><span>${t('va_col_unit')}</span><span>${t('va_col_a')}</span><span>${t('va_col_doc')}</span></div>${rows}</div></div>`;
+  return {title:t('va_title'), html, after(){ document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab; render();}); document.querySelectorAll('[data-f]').forEach(i=>i.onchange=()=>{S.form[v.id]=S.form[v.id]||{}; S.form[v.id][i.dataset.f]=i.value; persist(); render();}); }};
+}
+function vdocs(){
+  const v=me(); const DS=S.docStatus[v.id]||{};
+  const stOf=c=>DS[c]||((v.docs&&c in v.docs)?'ready':(v.detail?'ready':'missing'));
+  const req=DOCS.filter(d=>d[3]); const ready=req.filter(d=>stOf(d[0])==='ready').length;
+  const html = head(t('vd_title'), t('vd_sub'), `<div class="small muted">${t('vd_progress')} (${t('vd_req').toLowerCase()}): <b class="mono">${ready}/${req.length}</b></div><div class="bar ${ready===req.length?'good':'warn'}" style="width:180px;margin-top:4px"><i style="width:${ready/req.length*100}%"></i></div>`) + `<div class="card"><div class="bd tight tblwrap"><table><thead><tr><th>Kod</th><th>${t('ev_evidence')}</th><th>${t('vd_req')}</th><th>${t('vd_status')}</th><th>${t('vd_exp')}</th><th></th></tr></thead><tbody>
+  ${DOCS.map(d=>{ const s=stOf(d[0]); const ds=docState(v,d[0]); return `<tr><td class="mono">${d[0]}</td><td>${L([d[1],d[2]])}</td><td>${d[3]?`<span class="pill crit">${t('vd_req')}</span>`:`<span class="pill neutral">${t('vd_opt')}</span>`}</td><td><select data-doc="${d[0]}"><option value="missing" ${s==='missing'?'selected':''}>${t('vd_missing')}</option><option value="ready" ${s==='ready'?'selected':''}>${t('vd_ready')}</option><option value="prep" ${s==='prep'?'selected':''}>${t('vd_prep')}</option><option value="na" ${s==='na'?'selected':''}>${t('vd_na')}</option></select></td><td class="mono small">${v.docs&&d[0] in v.docs?(v.docs[d[0]]||t('doc_perm')):'—'} ${ds==='expired'?`<span class="pill crit">${t('doc_expired')}</span>`:ds==='expiring'?`<span class="pill warn">${t('doc_expiring')}</span>`:''}</td><td><button class="btn sm" data-up="${d[0]}">${t('vd_upload')}</button></td></tr>`; }).join('')}
+  </tbody></table></div></div>`;
+  return {title:t('vd_title'), html, after(){ document.querySelectorAll('[data-doc]').forEach(s=>s.onchange=()=>{S.docStatus[v.id]=S.docStatus[v.id]||{}; S.docStatus[v.id][s.dataset.doc]=s.value; persist(); render();}); document.querySelectorAll('[data-up]').forEach(b=>b.onclick=()=>{S.docStatus[v.id]=S.docStatus[v.id]||{}; S.docStatus[v.id][b.dataset.up]='ready'; persist(); toast(b.dataset.up+'.pdf ✓'); render();}); }};
+}
+function vsubmit(){
+  const v=me(); const DS=S.docStatus[v.id]||{}; const A=S.form[v.id]||{};
+  const stOf=c=>DS[c]||((v.docs&&c in v.docs)?'ready':(v.detail?'ready':'missing'));
+  const docsOk=DOCS.filter(d=>d[3]).every(d=>stOf(d[0])==='ready');
+  const koOk=['A.11','A.15','F.1'].every(k=>(A[k]||(v.detail?'y':''))==='y');
+  const fieldsOk=!!v.detail || Object.keys(A).length>20;
+  const sent=!!S.submitted[v.id];
+  const chk=(ok,l)=>`<div class="alert ${ok?'good':'warn'}" style="display:flex;gap:8px"><span>${ok?'✓':'!'}</span><span>${l}</span></div>`;
+  const html = head(t('vs_title'), t('vs_sub')) + `<div class="grid g2"><div class="card"><div class="hd"><h2>${t('vs_check')}</h2></div><div class="bd" style="display:flex;flex-direction:column;gap:8px">${chk(fieldsOk,t('vs_c1'))}${chk(docsOk,t('vs_c2'))}${chk(koOk,t('vs_c3'))}</div></div>
+  <div class="card"><div class="hd"><h2>${t('vs_title')}</h2></div><div class="bd" style="display:flex;flex-direction:column;gap:12px"><p style="max-width:60ch">${t('vs_decl')}</p><div class="grid g2"><div class="field"><label>${t('vs_name')}</label><input type="text" value="${esc(v.contact||'')}"></div><div class="field"><label>${t('vs_pos')}</label><input type="text" value="${esc(v.position||'')}"></div></div><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="agree" ${sent?'checked disabled':''}> ${t('vs_agree')}</label>
+  ${sent?`<div class="alert good">${t('vs_sent')}</div>`:`<button class="btn primary" id="send" disabled>${t('vs_send')}</button>`}</div></div></div>`;
+  return {title:t('vs_title'), html, after(){ const a=document.getElementById('agree'), s=document.getElementById('send'); if(s){ a.onchange=()=>s.disabled=!(a.checked&&fieldsOk&&docsOk&&koOk); s.onclick=()=>{S.submitted[v.id]=true; S.status[v.id]='under_review'; persist(); toast(t('vs_sent')); render();}; } }};
+}
+
+render();
+
+</script>
