@@ -329,5 +329,10 @@
   "class_below_min": "Class below the package minimum",
   "iso9001": "ISO 9001",
   "iso45001": "ISO 45001",
-  "nav_cycles": "Cycles"
+  "nav_cycles": "Cycles",
+  "sec_admin": "Administration",
+  "nav_categories": "Categories",
+  "nav_users": "Users",
+  "nav_settings": "Settings",
+  "nav_audit": "Audit log"
 }

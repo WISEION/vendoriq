@@ -67,6 +67,20 @@ export const MANAGER_NAV: NavSection[] = [
     ],
   },
   {
+    titleKey: 'sec_admin',
+    items: [
+      {
+        path: '/admin/categories',
+        labelKey: 'nav_categories',
+        icon: 'admin',
+        gatedBy: 'createCategory',
+      },
+      { path: '/admin/users', labelKey: 'nav_users', icon: 'admin', gatedBy: 'listUsers' },
+      { path: '/admin/settings', labelKey: 'nav_settings', icon: 'admin', gatedBy: 'putSettings' },
+      { path: '/admin/audit', labelKey: 'nav_audit', icon: 'admin', gatedBy: 'listAuditEvents' },
+    ],
+  },
+  {
     titleKey: 'sec_setup',
     items: [
       {
@@ -136,6 +150,10 @@ export const PAGE_TEXT: Record<string, { titleKey: string; subKey: string }> = {
   '/market': { titleKey: 'mk_title', subKey: 'mk_sub' },
   '/scoring-models': { titleKey: 'mo_title', subKey: 'mo_sub' },
   '/integrations': { titleKey: 'in_title', subKey: 'in_sub' },
+  '/admin/categories': { titleKey: 'adm_cat_title', subKey: 'adm_cat_sub' },
+  '/admin/users': { titleKey: 'adm_usr_title', subKey: 'adm_usr_sub' },
+  '/admin/settings': { titleKey: 'adm_set_title', subKey: 'adm_set_sub' },
+  '/admin/audit': { titleKey: 'adm_aud_title', subKey: 'adm_aud_sub' },
   '/portal': { titleKey: 'vh_title', subKey: 'vh_sub' },
   '/portal/profile': { titleKey: 'vp_title', subKey: 'vp_sub' },
   '/portal/application': { titleKey: 'va_title', subKey: 'va_sub' },

@@ -1,10 +1,8 @@
 {
-  "sec_admin": "Administrasiya",
   "nav_admin_categories": "Kateqoriyalar",
   "nav_admin_users": "İstifadəçilər və rollar",
   "nav_admin_settings": "Tənzimləmələr",
   "nav_admin_audit": "Audit jurnalı",
-
   "adm_categories_title": "Kateqoriyalar",
   "adm_categories_sub": "İş paketləri və material qrupları taksonomiyaları. Vendor öz kateqoriyalarını bu siyahıdan seçir.",
   "adm_categories_kind": "Taksonomiya",
@@ -15,7 +13,6 @@
   "adm_category_edit": "Kateqoriyanı redaktə et",
   "adm_categories_empty": "Bu taksonomiyada kateqoriya yoxdur.",
   "adm_no_parent": "Ana kateqoriya yoxdur",
-
   "adm_users_title": "İstifadəçilər",
   "adm_users_sub": "Hesablar və onların rolları. Rol dəyişikliyi serverin özü tərəfindən yoxlanılır — son aktiv admin heç vaxt endirilə bilməz.",
   "adm_users_empty": "İstifadəçi tapılmadı.",
@@ -38,7 +35,6 @@
   "adm_deactivate": "Deaktiv et",
   "adm_deactivate_confirm": "Təsdiqlə: deaktiv et",
   "adm_you": "Siz",
-
   "adm_settings_title": "Tənzimləmələr",
   "adm_settings_sub": "Uyğunlaşdırma hədləri, prekvalifikasiya müddəti, bildiriş və təşkilat parametrləri — kod deyil, məlumat (spesifikasiya §11.2).",
   "adm_settings_read_only": "Yalnız oxumaq üçün — dəyişiklik etmək icazəniz yoxdur.",
@@ -70,7 +66,6 @@
   "adm_org_name": "Təşkilat adı",
   "adm_default_locale": "Standart dil",
   "adm_currency": "Valyuta",
-
   "adm_audit_title": "Audit jurnalı",
   "adm_audit_sub": "Hər status dəyişikliyinin, bal düzəlişinin, qərarın və inteqrasiya yazısının dəyişməz qeydi (spesifikasiya §13).",
   "adm_audit_empty": "Bu filtrlərə uyğun qeyd yoxdur.",
@@ -83,7 +78,6 @@
   "adm_export": "Excel-ə ixrac et",
   "adm_export_note": "İxrac yalnız aşağıdakı tarix aralığını əhatə edir — icraçı, obyekt və əməliyyat filtrləri yalnız bu cədvələ tətbiq olunur.",
   "adm_system": "Sistem",
-
   "adm_col_code": "Kod",
   "adm_col_name_az": "Ad (AZ)",
   "adm_col_name_en": "Ad (EN)",
@@ -106,7 +100,6 @@
   "adm_col_entity": "Obyekt",
   "adm_col_before": "Əvvəl",
   "adm_col_after": "Sonra",
-
   "adm_filter_role": "Rol",
   "adm_all_roles": "Bütün rollar",
   "adm_search_users": "E-poçt və ya ad axtar…",
@@ -121,5 +114,13 @@
   "adm_save": "Yadda saxla",
   "adm_prev": "← Əvvəlki",
   "adm_next": "Növbəti →",
-  "adm_pagination": "Səhifələmə"
+  "adm_pagination": "Səhifələmə",
+  "adm_cat_title": "Kateqoriyalar",
+  "adm_cat_sub": "İş paketləri və material qrupları — vendorların uyğunluğu bunlara görə hesablanır.",
+  "adm_usr_title": "İstifadəçilər və rollar",
+  "adm_usr_sub": "Hesablar və onların rolları; icazələr serverdə tətbiq olunur.",
+  "adm_set_title": "Parametrlər",
+  "adm_set_sub": "Uyğunluq hədləri, prekvalifikasiyanın etibarlılıq müddəti, bildirişlər və dil.",
+  "adm_aud_title": "Audit jurnalı",
+  "adm_aud_sub": "Hər status dəyişikliyi, bal düzəlişi və qərar — dəyişdirilə bilməyən qeyd."
 }

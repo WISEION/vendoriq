@@ -1,10 +1,8 @@
 {
-  "sec_admin": "Administration",
   "nav_admin_categories": "Categories",
   "nav_admin_users": "Users & roles",
   "nav_admin_settings": "Settings",
   "nav_admin_audit": "Audit log",
-
   "adm_categories_title": "Categories",
   "adm_categories_sub": "The work-package and material-group taxonomies. A vendor picks its own categories from this list.",
   "adm_categories_kind": "Taxonomy",
@@ -15,7 +13,6 @@
   "adm_category_edit": "Edit category",
   "adm_categories_empty": "No categories in this taxonomy.",
   "adm_no_parent": "No parent category",
-
   "adm_users_title": "Users",
   "adm_users_sub": "Accounts and their roles. A role change is checked by the server itself — the last active admin can never be demoted.",
   "adm_users_empty": "No users found.",
@@ -38,7 +35,6 @@
   "adm_deactivate": "Deactivate",
   "adm_deactivate_confirm": "Confirm: deactivate",
   "adm_you": "You",
-
   "adm_settings_title": "Settings",
   "adm_settings_sub": "Matching thresholds, prequalification validity, notification and organisation parameters — data, not code (spec §11.2).",
   "adm_settings_read_only": "Read-only — you do not have permission to change these.",
@@ -70,7 +66,6 @@
   "adm_org_name": "Organisation name",
   "adm_default_locale": "Default language",
   "adm_currency": "Currency",
-
   "adm_audit_title": "Audit log",
   "adm_audit_sub": "An immutable record of every status change, score edit, decision and integration write (spec §13).",
   "adm_audit_empty": "No entries match these filters.",
@@ -83,7 +78,6 @@
   "adm_export": "Export to Excel",
   "adm_export_note": "The export covers only the date range below — the actor, entity and action filters apply to this table only.",
   "adm_system": "System",
-
   "adm_col_code": "Code",
   "adm_col_name_az": "Name (AZ)",
   "adm_col_name_en": "Name (EN)",
@@ -106,7 +100,6 @@
   "adm_col_entity": "Entity",
   "adm_col_before": "Before",
   "adm_col_after": "After",
-
   "adm_filter_role": "Role",
   "adm_all_roles": "All roles",
   "adm_search_users": "Search e-mail or name…",
@@ -121,5 +114,13 @@
   "adm_save": "Save",
   "adm_prev": "← Previous",
   "adm_next": "Next →",
-  "adm_pagination": "Pagination"
+  "adm_pagination": "Pagination",
+  "adm_cat_title": "Categories",
+  "adm_cat_sub": "Work packages and material groups — what vendor matching is computed against.",
+  "adm_usr_title": "Users & roles",
+  "adm_usr_sub": "Accounts and their roles; permissions are enforced server-side.",
+  "adm_set_title": "Settings",
+  "adm_set_sub": "Matching thresholds, prequalification validity, notifications and language.",
+  "adm_aud_title": "Audit log",
+  "adm_aud_sub": "Every status change, score edit and decision — an immutable record."
 }

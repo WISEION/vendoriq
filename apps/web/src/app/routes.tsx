@@ -23,6 +23,8 @@ import { ProjectEditScreen } from '../features/projects/ProjectEditScreen';
 import { ProjectMatchingScreen } from '../features/projects/ProjectMatchingScreen';
 import { ProjectsListScreen } from '../features/projects/ProjectsListScreen';
 import { DataSources, ErpConnector, ExcelImport } from '../features/integrations';
+import { MarketIntelligence, ModelEditor, ScoringModels } from '../features/intel';
+import { AuditLogScreen, CategoriesScreen, SettingsScreen, UsersScreen } from '../features/admin';
 import {
   VendorApplicationForm,
   VendorDocuments,
@@ -124,8 +126,25 @@ const SCREENS: { path: string; component: () => JSX.Element }[] = [
   // mounted bare: wrapping them in <Page> put the same heading on screen twice.
   { path: '/cycles', component: () => <CyclesScreen /> },
   { path: '/projects', component: () => <ProjectsListScreen /> },
+  // intelligence and scoring models — screens 25, 26
+  { path: '/market', component: () => <Page route="/market">{<MarketIntelligence />}</Page> },
+  {
+    path: '/scoring-models',
+    component: () => <Page route="/scoring-models">{<ScoringModels />}</Page>,
+  },
   // integrations — screen 28
   { path: '/integrations', component: () => <Page route="/integrations">{<DataSources />}</Page> },
+  // administration — screens 31–34
+  {
+    path: '/admin/categories',
+    component: () => <Page route="/admin/categories">{<CategoriesScreen />}</Page>,
+  },
+  { path: '/admin/users', component: () => <Page route="/admin/users">{<UsersScreen />}</Page> },
+  {
+    path: '/admin/settings',
+    component: () => <Page route="/admin/settings">{<SettingsScreen />}</Page>,
+  },
+  { path: '/admin/audit', component: () => <Page route="/admin/audit">{<AuditLogScreen />}</Page> },
   // vendor portal — screens 4, 5, 13, 14
   { path: '/portal', component: () => <Page route="/portal">{<VendorStatus />}</Page> },
   {
@@ -228,6 +247,15 @@ const projectEditRoute = createRoute({
   },
 });
 
+const modelEditorRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/scoring-models/$version',
+  component: function ModelEditorRoute() {
+    const { version } = modelEditorRoute.useParams();
+    return <ModelEditor version={version} />;
+  },
+});
+
 const excelImportRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/integrations/excel-import',
@@ -282,6 +310,7 @@ const nestedRoutes = [
   projectCreateRoute,
   projectMatchingRoute,
   projectEditRoute,
+  modelEditorRoute,
   excelImportRoute,
   erpConnectorRoute,
   applicationRedirectRoute,

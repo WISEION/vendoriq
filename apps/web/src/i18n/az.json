@@ -329,5 +329,10 @@
   "class_below_min": "Sinif paketin minimumundan aşağıdır",
   "iso9001": "ISO 9001",
   "iso45001": "ISO 45001",
-  "nav_cycles": "Dövrlər"
+  "nav_cycles": "Dövrlər",
+  "sec_admin": "Administrasiya",
+  "nav_categories": "Kateqoriyalar",
+  "nav_users": "İstifadəçilər",
+  "nav_settings": "Parametrlər",
+  "nav_audit": "Audit jurnalı"
 }
