@@ -180,3 +180,25 @@ thresholds are Azerbaijani manat. The system stores and displays AZN, the model 
 **Consequences.** No currency conversion exists anywhere in the code. If a second currency is
 ever needed it is a new model version with converted thresholds, not a runtime conversion —
 otherwise historical scores would silently move with an exchange rate.
+
+---
+
+## ADR-010 — The 34 screens have fixed addresses, recorded in `docs/SCREENS.md`
+
+**Status:** Accepted (phase 1, wave 2) · **Decided by:** orchestrator
+
+`docs/BUILD_BRIEF.md` §4.2 counts the screens per phase-2 task and `docs/SPEC.md` §7–§8
+describes what each one contains, but nothing said where a screen *lives*. `docs/SCREENS.md`
+now fixes, for all 34: a stable slug, a TanStack Router path, and the task that owns it. It is
+a contract artefact — a worker may not rename a route or a slug, it files a change request.
+
+**Why.** Phase 2 runs seven workers in parallel. Without a fixed map each invents its own URL
+shape (`/vendors/:id` vs `/vendor/:id` vs `/vendors/detail?id=`), the rail and the deep links
+disagree, and the phase-3 Playwright run — which must produce exactly 68 files, 34 screens ×
+AZ/EN — has no stable target to aim at. Fixing the addresses before the work starts costs one
+document; fixing them afterwards costs seven refactors and a re-run of every screenshot.
+
+**Consequences.** The screenshot file name is derived from the slug (`<slug>.<lang>.png`), so
+the phase-3 suite is a table-driven walk over `docs/SCREENS.md` rather than 68 hand-written
+cases. Gate 2's "every screen reachable" is checked against this list. Seven of the 34 are
+reached from a parent screen and deliberately have no rail entry; the file says which.
