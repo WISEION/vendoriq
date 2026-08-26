@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { isLocale, LOCALES, STORAGE_KEY, translate } from './index';
 import type { Locale } from './index';
@@ -23,6 +23,14 @@ function readStoredLocale(): Locale {
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(readStoredLocale);
+
+  // `setLocale` stamps `<html lang>` when the toggle is used, but a reload restores the stored
+  // locale without going through it — so the interface came back in English above
+  // `<html lang="az">`. Assistive technology and translation tools read that attribute, not
+  // the visible text, so it has to follow the locale on every render path, not just the click.
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
 
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next);

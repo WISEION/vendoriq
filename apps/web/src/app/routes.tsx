@@ -120,9 +120,10 @@ const SCREENS: { path: string; component: () => JSX.Element }[] = [
     path: '/applications',
     component: () => <Page route="/applications">{<ApplicationsQueue />}</Page>,
   },
-  // projects & cycles — screens 21, 22
-  { path: '/cycles', component: () => <Page route="/cycles">{<CyclesScreen />}</Page> },
-  { path: '/projects', component: () => <Page route="/projects">{<ProjectsListScreen />}</Page> },
+  // projects & cycles — screens 21, 22. These two render their own page head, so they are
+  // mounted bare: wrapping them in <Page> put the same heading on screen twice.
+  { path: '/cycles', component: () => <CyclesScreen /> },
+  { path: '/projects', component: () => <ProjectsListScreen /> },
   // integrations — screen 28
   { path: '/integrations', component: () => <Page route="/integrations">{<DataSources />}</Page> },
   // vendor portal — screens 4, 5, 13, 14
