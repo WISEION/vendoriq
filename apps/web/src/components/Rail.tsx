@@ -1,16 +1,20 @@
 import { Link, useRouterState } from '@tanstack/react-router';
 import { useLocale } from '../i18n/LocaleProvider';
-import { MANAGER_NAV, VENDOR_NAV } from '../app/navigation';
+import { navSectionsForRole, VENDOR_NAV } from '../app/navigation';
+import { useSession } from '../auth/SessionProvider';
 import { Icon } from './Icon';
 
 /**
  * Left rail. Which sections appear is a function of the workspace the user is in; which
- * *items* a role may open is enforced server-side — the rail only hides what is pointless.
+ * *items* a role may open within the manager workspace is `navSectionsForRole` — the rail
+ * only hides what is pointless, the server enforces every operation regardless.
  */
 export function Rail({ workspace }: { workspace: 'manager' | 'vendor' }) {
   const { t } = useLocale();
+  const { session } = useSession();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const sections = workspace === 'manager' ? MANAGER_NAV : VENDOR_NAV;
+  const role = session.status === 'authenticated' ? session.principal.role : 'vendor';
+  const sections = workspace === 'manager' ? navSectionsForRole(role) : VENDOR_NAV;
 
   return (
     <aside className="rail">

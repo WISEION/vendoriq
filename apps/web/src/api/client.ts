@@ -39,7 +39,8 @@ function csrfToken(): string | null {
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  if (init.body && !headers.has('Content-Type')) {
+  // FormData sets its own multipart boundary; only stamp JSON on a body that needs it.
+  if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
   const token = csrfToken();
@@ -60,6 +61,23 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     throw new ApiError(response.status, payload as ApiErrorBody);
   }
   return payload as T;
+}
+
+/** For the handful of endpoints that return a file (`.xlsx` / `.pdf` exports) instead of JSON. */
+export async function apiFetchBinary(path: string, method: string): Promise<Blob> {
+  const headers = new Headers();
+  const token = csrfToken();
+  if (token && method !== 'GET') {
+    headers.set('X-CSRF-Token', token);
+  }
+
+  const response = await fetch(`${BASE_URL}${path}`, { method, headers, credentials: 'include' });
+
+  if (!response.ok) {
+    const payload = (await response.json()) as ApiErrorBody;
+    throw new ApiError(response.status, payload);
+  }
+  return response.blob();
 }
 
 export interface Health {

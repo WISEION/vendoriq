@@ -256,3 +256,193 @@ button {
   color: var(--accent);
   font-weight: 600;
 }
+
+/* ── auth screens ───────────────────────────────────────────────────────── */
+.auth-shell {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 24px;
+  background: var(--paper);
+}
+
+.auth-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 420px;
+}
+
+.auth-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--fh);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.auth-brand small {
+  font-family: var(--fm);
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  padding: 28px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.auth-card h2 {
+  font-size: 20px;
+}
+
+.auth-card > p.muted {
+  margin: -10px 0 0;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.field input,
+.field select {
+  height: var(--ctl-h);
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  padding: 0 12px;
+  background: var(--paper);
+  color: var(--text);
+  font: inherit;
+}
+
+.field input:focus-visible,
+.field select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.field-error {
+  color: var(--crit);
+  font-size: 12px;
+}
+
+.field-radio-group {
+  display: flex;
+  gap: 14px;
+}
+
+.field-radio-group label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
+}
+
+.form-error {
+  background: var(--crit-soft);
+  color: var(--crit);
+  border-radius: var(--r-ctl);
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.form-success {
+  background: var(--good-soft);
+  color: var(--good);
+  border-radius: var(--r-ctl);
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.auth-hint {
+  font-family: var(--fm);
+  font-size: 12px;
+  color: var(--warn);
+  background: var(--warn-soft);
+  border-radius: var(--r-badge);
+  padding: 8px 10px;
+}
+
+.btn-primary {
+  height: var(--ctl-h);
+  border-radius: var(--r-ctl);
+  border: 1px solid transparent;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  height: var(--ctl-h);
+  border-radius: var(--r-ctl);
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+  text-align: left;
+}
+
+.auth-links {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.auth-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.auth-actions .btn-primary,
+.auth-actions .btn-secondary {
+  flex: 1;
+}

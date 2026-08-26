@@ -3,12 +3,23 @@
  * (`docs/design/app.js`, `NAV`). Routes exist from phase 0 so every screen has an address
  * before it has content; the feature teams fill the components in.
  */
+/** `openapi.yaml` `UserRole` enum. */
+export type UserRole = 'vendor' | 'officer' | 'commission' | 'manager' | 'admin';
+
 export interface NavItem {
   /** Route path under the workspace root. */
   path: string;
   /** i18n key of the label. */
   labelKey: string;
   icon: keyof typeof ICONS;
+  /**
+   * Staff roles that may open this item, sourced from `docs/TEST_ACCOUNTS.md`'s role table
+   * ("officer — the whole register", "commission — applications and evaluations", "manager /
+   * admin — everything"). Omitted = every staff role (manager and admin always see
+   * everything; access is still enforced server-side per operation — this only hides what a
+   * role has no reason to open).
+   */
+  roles?: UserRole[];
 }
 
 export interface NavSection {
@@ -40,23 +51,49 @@ export const MANAGER_NAV: NavSection[] = [
     titleKey: 'sec_manage',
     items: [
       { path: '/', labelKey: 'nav_overview', icon: 'overview' },
-      { path: '/vendors', labelKey: 'nav_vendors', icon: 'vendors' },
-      { path: '/applications', labelKey: 'nav_apps', icon: 'apps' },
-      { path: '/projects', labelKey: 'nav_projects', icon: 'projects' },
+      {
+        path: '/vendors',
+        labelKey: 'nav_vendors',
+        icon: 'vendors',
+        roles: ['officer', 'manager', 'admin'],
+      },
+      {
+        path: '/applications',
+        labelKey: 'nav_apps',
+        icon: 'apps',
+        roles: ['officer', 'commission', 'manager', 'admin'],
+      },
+      { path: '/projects', labelKey: 'nav_projects', icon: 'projects', roles: ['manager', 'admin'] },
     ],
   },
   {
     titleKey: 'sec_intel',
-    items: [{ path: '/market', labelKey: 'nav_market', icon: 'market' }],
+    items: [{ path: '/market', labelKey: 'nav_market', icon: 'market', roles: ['manager', 'admin'] }],
   },
   {
     titleKey: 'sec_setup',
     items: [
-      { path: '/scoring-models', labelKey: 'nav_models', icon: 'models' },
-      { path: '/integrations', labelKey: 'nav_integrations', icon: 'integrations' },
+      { path: '/scoring-models', labelKey: 'nav_models', icon: 'models', roles: ['manager', 'admin'] },
+      {
+        path: '/integrations',
+        labelKey: 'nav_integrations',
+        icon: 'integrations',
+        roles: ['officer', 'admin'],
+      },
     ],
   },
 ];
+
+/** Sections and items a role may open — manager/admin see everything; others per `roles` above. */
+export function navSectionsForRole(role: UserRole): NavSection[] {
+  const seesEverything = role === 'manager' || role === 'admin';
+  return MANAGER_NAV.map((section) => ({
+    ...section,
+    items: section.items.filter(
+      (item) => seesEverything || !item.roles || item.roles.includes(role),
+    ),
+  })).filter((section) => section.items.length > 0);
+}
 
 export const VENDOR_NAV: NavSection[] = [
   {
