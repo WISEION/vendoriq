@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
@@ -99,8 +99,13 @@ class RevokedSession(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("app_user.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    #: When the token expires on its own; after that this row proves nothing new.
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    #: When the token expires on its own; after that this row proves nothing new. Indexed
+    #: because the only bulk query against this table is the housekeeping delete by expiry.
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    #: Server-side default: the instant belongs to the database, not to whichever process
+    #: happened to handle the logout.
     revoked_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+        DateTime(timezone=True), nullable=False, server_default=func.now()
     )

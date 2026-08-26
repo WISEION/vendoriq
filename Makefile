@@ -20,7 +20,7 @@ TEST_DB_URL ?= postgresql+psycopg://vendoriq:vendoriq@localhost:5432/vendoriq_te
 API_PORT  ?= 8000
 WEB_PORT  ?= 5173
 
-.PHONY: help setup db-up migrate seed seed-demo seed-form purge-demo create-admin api web worker test e2e \
+.PHONY: help setup db-up migrate seed seed-demo seed-form purge-demo create-admin api web worker test e2e ci \
 	lint format screenshots openapi-validate up prod-up prod-down prod-logs backup restore clean
 
 # Compose invocations. The production stack is the base file *plus* the overlay that turns
@@ -73,6 +73,19 @@ test: ## Run the Python and the frontend unit tests
 
 e2e: ## Run the Playwright suite (needs make api and make web running, or CI's servers)
 	cd $(WEB_DIR) && npm run e2e
+
+ci: ## Everything CI runs, in CI's order — run this before pushing
+	@# Three defects reached CI green-locally because a check here was not the check there:
+	@# ruff resolved from PATH instead of the lock, `tsc --noEmit` instead of `tsc --build`,
+	@# and `alembic check` never run at all. This target is the answer to that: one command
+	@# whose steps are copied from .github/workflows, so "it passes locally" means something.
+	$(RUFF) check .
+	$(RUFF) format --check .
+	$(MYPY) .
+	cd $(API_DIR) && DATABASE_URL="$(DB_URL)" ../../$(PY) -m alembic check
+	DATABASE_URL="$(TEST_DB_URL)" $(PY) -m pytest \
+		--cov=packages --cov=apps/api/vendoriq_api --cov-report=term-missing --cov-fail-under=80
+	cd $(WEB_DIR) && npm run lint && npm run typecheck && npm run test && npm run build
 
 lint: ## ruff + mypy + eslint + tsc
 	$(RUFF) check .
