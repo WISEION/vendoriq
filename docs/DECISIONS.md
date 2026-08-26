@@ -470,3 +470,37 @@ orchestrator is supposed to refuse.
 trail the change-request queue would have produced, without the queue. The portal must say so
 plainly rather than showing a dead control: a bare 409 tells the vendor "no" with no path.
 This goes into `docs/REPORT.md` as a known gap with the shape the endpoint should take.
+
+---
+
+## ADR-017 — `is_locked` freezes a model's definition, not its use
+
+**Status:** Accepted (phase 2) · **Decided by:** orchestrator · **Corrects** the task 2B brief
+
+Task 2B was briefed to "refuse on a locked model version" when saving an evaluation. It
+declined, implemented the refusal on `ScoringModelStatus.RETIRED` instead, and asked for
+confirmation. **It was right and the brief was wrong.**
+
+Spec §10.3 says "every model version is immutable once an application has been scored with
+it". That is a statement about the model's **definition** — its criteria, thresholds, class
+bands and pass mark — not about whether the model may still score anything. `is_locked` is set
+the moment the first application is scored, so `sub-4` is locked from the seed onward. A
+`putEvaluation` that refused on `is_locked` would refuse every evaluation in the system,
+including the 13 real Rev4 applications the acceptance check is built on. The brief conflated
+"frozen definition" with "unusable".
+
+**The rule, in one line each:**
+
+* `is_locked` gates **editing the model** — `patchScoringModelDraft` must refuse it. That is
+  task 2D's operation, and it is where spec §10.3 actually bites: changing a weight creates a
+  new version, it never rewrites a version an application was scored with.
+* `status = retired` gates **scoring with the model** — a version the commission has taken out
+  of service accepts no new evaluations, while every historic application keeps its own.
+
+The two are orthogonal on purpose (ADR-014): a version can be locked and active, locked and
+retired, or — briefly, as a draft — neither.
+
+**Consequences.** Task 2D's brief carries the `is_locked` half explicitly, so the rule is
+enforced in the one place it belongs rather than in the place the original brief guessed.
+`services/evaluation.py` documents the distinction at the top of the module, and
+`test_put_evaluation_refuses_a_retired_model_version` pins it.
