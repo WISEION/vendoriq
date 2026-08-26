@@ -202,3 +202,121 @@ document; fixing them afterwards costs seven refactors and a re-run of every scr
 the phase-3 suite is a table-driven walk over `docs/SCREENS.md` rather than 68 hand-written
 cases. Gate 2's "every screen reachable" is checked against this list. Seven of the 34 are
 reached from a parent screen and deliberately have no rail entry; the file says which.
+
+---
+
+## ADR-008 — `E.2` engineers excludes technicians and foremen
+
+**Status:** Accepted (phase 1, wave 2) · **Decided by:** orchestrator · **Supersedes** the
+phase-1A behaviour of `derive_raw`
+
+The subcontractor model scores `E.2` "Engineers" against the thresholds `< 3 → 0, ≤ 7 → 40 %,
+≤ 15 → 75 %, else 100 %` (spec §10.1). The application form has no `E.2` cell for engineers —
+its own `E.2` is "Temporary / contract" headcount — so the value is derived from the technical
+staff block. `derive_raw` summed **E.4…E.9**. It now sums **E.4…E.8**.
+
+**Why.** The form's own labels settle it. E.4 chief engineer / technical director, E.5 civil
+engineers, E.6 architects, E.7 electrical engineers, E.8 MEP / HVAC engineers — then E.9
+"Texniklər (usta, texnik)" / "Technicians / foremen", who are not engineers. Counting E.9
+inflated every vendor's engineer count by its technician headcount and made a threshold that
+distinguishes an engineering department from a site crew read the wrong quantity.
+
+**Verification.** The Rev4 fixture is unchanged: 13/13 totals and decisions still match
+`sheetTotal` / `sheetDecision`. It cannot move, and that is worth stating plainly rather than
+claiming as evidence — `seed/vendors_seed.json` carries `E.2` as extracted from the workbook
+and feeds it straight to `score()`, so `derive_raw` is not on that path at all. The fixture
+neither confirms nor refutes this ruling; the form's labels do.
+
+**Consequences.** WESA's derived `E.2` moves 12 → 8 (E.4…E.8 = 1+5+1+0+1, E.9 = 4), which is
+the single value that changed in `packages/excel_import/tests/fixtures/wesa_expected.json`.
+No score moves with it: `sub-4`'s cuts are `[[3,0],[8,0.4],[16,0.75]]`, so 8 and 12 sit in the
+same `< 16 → 75 %` band and both score 3.0 of 4. A vendor whose technicians outnumber its
+engineers can now fall below a band it used to clear — which is the point.
+
+---
+
+## ADR-009 — ISO 9001 is read from each model's own criterion
+
+**Status:** Accepted (phase 1, wave 2) · **Decided by:** orchestrator
+
+Matching's `_certificate_held` resolved an `iso9001` package requirement as
+`C.4 > 0 or F.1 > 0`, for every vendor, regardless of type. The `or` was ported from the
+prototype. It is now resolved per model: **`C.4` in `sub-4`, `F.1` in `sup-1`.**
+
+**Why.** The two codes mean different things in the two models, and the `or` was wrong in both
+directions. In `sub-4`, `C.4` is ISO 9001 and `F.1` is the HSE policy — a knock-out criterion
+unrelated to quality management — so a subcontractor with an HSE policy and no certificate
+satisfied an ISO 9001 requirement. In `sup-1`, `F.1` is ISO 9001 while `C.4` is product
+certificates and `C.3` is manufacturer authorisation. A criterion code is only meaningful
+inside the model that defines it.
+
+**Consequences.** Shortlists get shorter and truer. See ADR-011 for how the model is chosen
+for a vendor of type `both`, and for the two model gaps this work exposed.
+
+---
+
+## ADR-011 — A required certificate is resolved against the model the vendor was scored with
+
+**Status:** Accepted (phase 1, wave 2) · **Decided by:** orchestrator
+
+Two rules, both in matching's certificate check:
+
+1. **Which model.** The model is `vendor["model_version"]` — the one that actually produced
+   the vendor's score — not an inference from `vendor_type`. This settles type `both`, which
+   the type-based split could only guess at. The score and the certificate check must read the
+   same rubric, or eligibility is being claimed against a model the vendor was never measured
+   with.
+2. **A certificate with no criterion is not held.** The former rule was "an unknown key
+   passes". A required certificate that the vendor's model has no criterion for cannot be
+   evidenced, so the vendor is not eligible and the gap text names the certificate.
+
+**Why rule 2.** Passing a certificate nobody checked is the system claiming a verification
+that never happened — the same class of error as the `C.4 or F.1` bug in ADR-009, and the
+worse direction to fail in. A false negative is visible on the matching screen: the gap says
+which certificate is missing and the manager can drop the requirement. A false positive
+silently puts an unqualified vendor on a shortlist. Spec §12's claim for the intelligence
+views is that they are honest about their own accuracy.
+
+**Blast radius, checked before ruling.** In `seed/data.json` only TQS-238 pk3 (MEP) requires
+`iso45001` and TQS-238 pk1 / TQS-301 pk1 require `iso9001` — all three are work packages. No
+material package requires any certificate, so no supplier in the seed changes state.
+
+**Two model gaps this exposed. Both recorded, neither fixed** — model versions are immutable
+once an application has been scored with them (spec §10.3), and `sup-1` is marked "proposed"
+until the commission freezes it (brief §1.3), so re-weighting either is the commission's
+decision, not the build's:
+
+* **`sup-1` has no ISO 45001 criterion at all.** Its `F.2` is "Defect / return record". Under
+  rule 2 a supplier is therefore never eligible for a package requiring ISO 45001. That is the
+  honest answer while the model has no such criterion; the alternative was crediting a clean
+  returns record as a safety certificate.
+* **`sub-4`'s `F.2` conflates ISO 14001 with ISO 45001** ("ISO 14001 / 45001", one rubric cell).
+  A subcontractor holding only ISO 14001 registers as holding ISO 45001. `sub-4` is the frozen
+  Rev4 model all 13 fixture vendors were scored with, so this is a limitation of the model, not
+  of the engine.
+
+Both go into `docs/REPORT.md` as known gaps for the commission.
+
+---
+
+## ADR-012 — Argon2id is the password algorithm, not the aspiration
+
+**Status:** Accepted (phase 1, wave 2) · **Decided by:** orchestrator · **Amends** ADR-005
+
+ADR-005 recorded that `argon2-cffi` could not be installed on the previous build host and that
+`security/hashing.py` therefore degraded to PBKDF2-HMAC-SHA256. This environment reaches PyPI,
+`uv sync` installs `argon2-cffi` 25.1.0, and every deployment and test now takes the Argon2id
+path. The module's docstring said the opposite and its live branches were marked
+`# pragma: no cover - not reachable on the build host`, which would have hidden the real
+algorithm from the coverage report that brief §7.2 requires.
+
+Fixing the two type errors this file carried also removed `except (VerifyMismatchError,
+Exception)`. That clause caught everything, which hid a real defect: a stored string that is
+not an argon2 hash raises `InvalidHashError`, a `ValueError` rather than an `Argon2Error`, so
+the two rejection paths do not share a base class. Both now mean "does not verify" and are
+caught by name; anything else propagates instead of being silently reported as a bad password.
+`apps/api/tests/test_auth.py::test_verify_password_handles_a_missing_hash` is what caught it.
+
+**Consequences.** PBKDF2 stays as the documented fallback for a host that cannot build the C
+extension, and `verify_password` still reads both encodings, so moving between them re-hashes
+on the next successful login rather than invalidating every password.

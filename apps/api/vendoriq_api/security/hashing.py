@@ -1,10 +1,11 @@
 """Password, one-time-code and API-key hashing.
 
-Argon2id is the intended algorithm (``argon2-cffi`` is in ``pyproject.toml``). It is a
-C extension and it is not installable on the build host (ADR-005: PyPI is blocked), so the
-module degrades to PBKDF2-HMAC-SHA256 from the standard library. Both encodings are
-self-describing and ``verify_password`` reads either, which means a deployment that gains
-argon2 re-hashes on the next successful login rather than invalidating every password.
+Argon2id is the algorithm: ``argon2-cffi`` is a hard dependency of ``apps/api`` and is
+installed, so this is the path every deployment and every test takes. PBKDF2-HMAC-SHA256
+from the standard library remains as a fallback for a host that cannot build the C
+extension (ADR-005 describes the build host that could not). Both encodings are
+self-describing and ``verify_password`` reads either, so a deployment that moves between
+the two re-hashes on the next successful login rather than invalidating every password.
 """
 
 from __future__ import annotations
@@ -14,14 +15,25 @@ import hashlib
 import hmac
 import secrets
 
-try:  # pragma: no cover - exercised only where argon2-cffi is installed
+#: Every way ``PasswordHasher.verify`` can reject the stored string. Held as a tuple
+#: because the fallback branch cannot rebind the imported name — assigning ``Exception``
+#: over a class is an error the type checker rejects — and because the two failures do not
+#: share a base: ``VerifyMismatchError`` is an ``Argon2Error`` (the password is wrong)
+#: while ``InvalidHashError`` is a ``ValueError`` (the stored string is not an argon2 hash
+#: at all). Both mean "this password does not verify", never a 500, so both are caught.
+#: A bare ``except Exception`` here would say the same thing and also swallow the
+#: programming mistakes this module should surface.
+_VERIFY_ERRORS: tuple[type[BaseException], ...]
+
+try:
     from argon2 import PasswordHasher
-    from argon2.exceptions import VerifyMismatchError
+    from argon2.exceptions import InvalidHashError, VerificationError
 
     _ARGON2: PasswordHasher | None = PasswordHasher()
-except ImportError:  # pragma: no cover - the build host's path
+    _VERIFY_ERRORS = (VerificationError, InvalidHashError)
+except ImportError:  # pragma: no cover - only a host without the C extension
     _ARGON2 = None
-    VerifyMismatchError = Exception
+    _VERIFY_ERRORS = (ValueError,)
 
 #: OWASP's 2023 floor for PBKDF2-HMAC-SHA256. Raise it, never lower it.
 PBKDF2_ROUNDS = 600_000
@@ -47,7 +59,7 @@ def _pbkdf2_hash(password: str, salt: bytes, rounds: int) -> str:
 
 def hash_password(password: str) -> str:
     """Hash a staff password with the strongest algorithm this process has."""
-    if _ARGON2 is not None:  # pragma: no cover - not reachable on the build host
+    if _ARGON2 is not None:
         return str(_ARGON2.hash(password))
     return _pbkdf2_hash(password, secrets.token_bytes(16), PBKDF2_ROUNDS)
 
@@ -69,10 +81,10 @@ def verify_password(password: str, encoded: str | None) -> bool:
             return False
         candidate = _pbkdf2_hash(password, salt, rounds)
         return hmac.compare_digest(candidate, encoded)
-    if _ARGON2 is not None:  # pragma: no cover - not reachable on the build host
+    if _ARGON2 is not None:
         try:
             return bool(_ARGON2.verify(encoded, password))
-        except (VerifyMismatchError, Exception):
+        except _VERIFY_ERRORS:
             return False
     return False
 
