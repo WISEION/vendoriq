@@ -53,7 +53,18 @@ exclude = ["^\\.venv/", "^apps/web/", "^docs/", "^apps/api/alembic/"]
 mypy_path = "apps/api:apps/worker:packages/scoring:packages/excel_import"
 
 [[tool.mypy.overrides]]
-module = ["apscheduler.*", "openpyxl.*", "psycopg.*", "yaml", "openapi_spec_validator.*"]
+module = [
+    "apscheduler.*",
+    "openpyxl.*",
+    "psycopg.*",
+    "yaml",
+    "openapi_spec_validator.*",
+    # Optional dependencies: argon2-cffi is preferred but degrades to stdlib PBKDF2, and
+    # boto3 only exists with the [s3] extra. Both are guarded by try/except ImportError.
+    "argon2.*",
+    "boto3",
+    "botocore.*",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

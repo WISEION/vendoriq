@@ -11,9 +11,20 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
 from vendoriq_api.config import get_settings
 
-from .jobs import JOBS
+from .jobs import JOBS, JOBS_BY_KEY
 
 logger = logging.getLogger("vendoriq.worker")
+
+
+def run_once(key: str) -> int:
+    """Run one job now and exit — how the runbook triggers a scan out of schedule."""
+    job = JOBS_BY_KEY.get(key)
+    if job is None:
+        logger.error("unknown job %r; known jobs: %s", key, ", ".join(sorted(JOBS_BY_KEY)))
+        return 2
+    logger.info("running job %s (%s)", job.key, job.description)
+    job.run()
+    return 0
 
 
 def build_scheduler() -> BlockingScheduler:
@@ -31,9 +42,17 @@ def build_scheduler() -> BlockingScheduler:
     return scheduler
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     settings = get_settings()
     logging.basicConfig(level=settings.log_level, format="%(asctime)s %(levelname)s %(message)s")
+
+    arguments = sys.argv[1:] if argv is None else argv
+    if arguments and arguments[0] == "--once":
+        if len(arguments) < 2:
+            logger.error("--once needs a job key: %s", ", ".join(sorted(JOBS_BY_KEY)))
+            return 2
+        return run_once(arguments[1])
+
     scheduler = build_scheduler()
 
     def _stop(signum: int, _frame: FrameType | None) -> None:

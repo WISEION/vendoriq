@@ -142,3 +142,87 @@ class ScoreClass(StrEnum):
     D = "D"
     F = "F"
     KO = "KO"
+
+
+class AdapterKey(StrEnum):
+    """Data-source adapters (spec §6).
+
+    The contract's ``AdapterKey`` carries a single ``registry`` member. The registry work
+    splits into two independent government checks with different cadences and different
+    knock-out criteria, so the constants below name both. ``REGISTRY`` is kept as the
+    contract-visible umbrella value until the orchestrator widens ``docs/openapi.yaml``.
+    """
+
+    GENERIC_REST = "generic_rest"
+    CSV = "csv"
+    ERP_1C = "erp_1c"
+    ERP_SAP = "erp_sap"
+    ERP_ODOO = "erp_odoo"
+    #: Contract-visible umbrella key; the two below are what the adapters actually register as.
+    REGISTRY = "registry"
+    #: State Tax Service — A.4 tax clearance and VÖEN validity.
+    REGISTRY_TAX = "registry_tax"
+    #: Construction licence register — A.1 licence validity.
+    REGISTRY_LICENCE = "registry_licence"
+    EXCEL = "excel"
+
+
+#: Adapter keys that `docs/openapi.yaml` accepts on the wire today.
+CONTRACT_ADAPTER_KEYS: frozenset[AdapterKey] = frozenset(
+    {
+        AdapterKey.GENERIC_REST,
+        AdapterKey.CSV,
+        AdapterKey.ERP_1C,
+        AdapterKey.ERP_SAP,
+        AdapterKey.ERP_ODOO,
+        AdapterKey.REGISTRY,
+        AdapterKey.EXCEL,
+    }
+)
+
+
+class EventType(StrEnum):
+    """Domain events. The same stream webhooks deliver and ``GET /events`` pages."""
+
+    VENDOR_REGISTERED = "vendor.registered"
+    VENDOR_INVITED = "vendor.invited"
+    VENDOR_PREQUALIFIED = "vendor.prequalified"
+    VENDOR_REJECTED = "vendor.rejected"
+    VENDOR_SUSPENDED = "vendor.suspended"
+    APPLICATION_SUBMITTED = "application.submitted"
+    APPLICATION_DECIDED = "application.decided"
+    DOCUMENT_UPLOADED = "document.uploaded"
+    DOCUMENT_EXPIRING = "document.expiring"
+    PROJECT_MATCHED = "project.matched"
+    MODEL_PUBLISHED = "model.published"
+    SYNC_COMPLETED = "sync.completed"
+
+
+class Scope(StrEnum):
+    """API key scope, ``<module>:<read|write>`` (brief §2, "API-first")."""
+
+    VENDORS_READ = "vendors:read"
+    VENDORS_WRITE = "vendors:write"
+    APPLICATIONS_READ = "applications:read"
+    APPLICATIONS_WRITE = "applications:write"
+    PROJECTS_READ = "projects:read"
+    PROJECTS_WRITE = "projects:write"
+    INTEL_READ = "intel:read"
+    INTEGRATIONS_READ = "integrations:read"
+    INTEGRATIONS_WRITE = "integrations:write"
+    ADMIN_READ = "admin:read"
+    ADMIN_WRITE = "admin:write"
+
+
+class DocumentExpiryState(StrEnum):
+    """Derived from ``Document.status`` and ``expiry_date`` — never stored.
+
+    ``perm`` is the "Müddətsiz" case of brief §1.11: a document that is on file and never
+    expires. It is a separate state from ``valid`` because the reminder jobs must skip it.
+    """
+
+    MISSING = "missing"
+    PERM = "perm"
+    VALID = "valid"
+    EXPIRING = "expiring"
+    EXPIRED = "expired"

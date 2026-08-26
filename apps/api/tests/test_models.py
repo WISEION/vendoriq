@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from sqlalchemy import UniqueConstraint
 from vendoriq_api.models import SOURCE_TRUST_RANK, Base, ObservationSource
 
 EXPECTED_TABLES = {
@@ -13,6 +14,7 @@ EXPECTED_TABLES = {
     "category",
     "contact",
     "document",
+    "evaluation",
     "event",
     "field_observation",
     "match_run",
@@ -67,7 +69,6 @@ def test_application_carries_snapshot_and_computed_scores() -> None:
         "raw_snapshot",
         "rubric_scores",
         "computed",
-        "second_rubric",
         "declaration",
         "decision",
         "justification",
@@ -75,6 +76,32 @@ def test_application_carries_snapshot_and_computed_scores() -> None:
         "decided_at",
     ):
         assert name in columns, name
+
+
+def test_the_second_evaluator_is_a_row_not_a_column() -> None:
+    """Migration 0002: ``application.second_rubric`` became the ``evaluation`` table.
+
+    A column could hold exactly one extra opinion and could not say whose it was. The table
+    holds any number, names the evaluator, and marks which set the decision was taken from
+    (spec §10.3).
+    """
+    assert "second_rubric" not in Base.metadata.tables["application"].columns
+    evaluation = Base.metadata.tables["evaluation"].columns
+    for name in (
+        "application_id",
+        "evaluator_id",
+        "rubric",
+        "computed",
+        "is_primary",
+        "created_at",
+    ):
+        assert name in evaluation, name
+    unique = {
+        tuple(sorted(column.name for column in constraint.columns))
+        for constraint in Base.metadata.tables["evaluation"].constraints
+        if isinstance(constraint, UniqueConstraint)
+    }
+    assert ("application_id", "evaluator_id") in unique
 
 
 def test_observation_trust_rank_is_generated_by_the_database() -> None:

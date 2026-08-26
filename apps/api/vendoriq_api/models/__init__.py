@@ -11,22 +11,28 @@ from .base import Base, TimestampMixin
 from .catalog import Category, VendorCategory
 from .document import Document
 from .enums import (
+    CONTRACT_ADAPTER_KEYS,
     SOURCE_TRUST_RANK,
+    AdapterKey,
     ApplicationStatus,
     CategoryKind,
     CycleKind,
     CycleStatus,
     DecisionKind,
+    DocumentExpiryState,
     DocumentStatus,
+    EventType,
     MatchState,
     ObservationSource,
     ProjectStage,
+    Scope,
     ScoreClass,
     SyncResult,
     UserRole,
     VendorStatus,
     VendorType,
 )
+from .evaluation import Evaluation
 from .events import AuditEvent, Event
 from .integration import SyncLog, Webhook
 from .observation import FieldObservation
@@ -38,7 +44,9 @@ from .setting import Setting
 from .vendor import Contact, Vendor
 
 __all__ = [
+    "CONTRACT_ADAPTER_KEYS",
     "SOURCE_TRUST_RANK",
+    "AdapterKey",
     "ApiKey",
     "Application",
     "ApplicationStatus",
@@ -51,8 +59,11 @@ __all__ = [
     "CycleStatus",
     "DecisionKind",
     "Document",
+    "DocumentExpiryState",
     "DocumentStatus",
+    "Evaluation",
     "Event",
+    "EventType",
     "FieldObservation",
     "MatchRun",
     "MatchState",
@@ -62,6 +73,7 @@ __all__ = [
     "Project",
     "ProjectStage",
     "QualificationCycle",
+    "Scope",
     "ScoreClass",
     "ScoringModel",
     "Setting",

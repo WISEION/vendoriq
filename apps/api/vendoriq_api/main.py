@@ -1,9 +1,12 @@
 """FastAPI application factory.
 
-Phase 0 deliberately exposes only ``/health`` and the contract documentation. Feature
-routers land here in phase 1+ (``app.include_router(...)``), one module per domain:
-core, auth, vendors, applications, scoring, matching, intel, imports, integrations,
-admin, notifications, events.
+Routers are mounted under ``API_PREFIX`` (``/api``) so one origin serves the SPA and the
+API behind Caddy, exactly as the Vite dev proxy does locally. ``/health`` is additionally
+mounted at the root because that is where a container health check looks.
+
+Phase 1B/1C mounts auth, vendors, admin and events. Applications, cycles, scoring models,
+projects, intel and integrations land in phase 2 — their operations already have permission
+matrix entries, so adding a router does not require rethinking who may call it.
 """
 
 from __future__ import annotations
@@ -19,6 +22,11 @@ from . import __version__
 from .config import get_settings
 from .errors import install_error_handlers
 from .openapi import contract_yaml, load_contract
+from .routers import admin, auth, events, storage, vendors
+from .schemas import Health
+
+#: Mounted under the API prefix, in contract-tag order.
+FEATURE_ROUTERS = (auth.router, vendors.router, admin.router, events.router, storage.router)
 
 
 def create_app() -> FastAPI:
@@ -36,27 +44,31 @@ def create_app() -> FastAPI:
         allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
-        allow_headers=["*"],
+        allow_headers=["*", "X-CSRF-Token", "X-API-Key"],
+        expose_headers=["X-Dev-TOTP"],
     )
     install_error_handlers(app)
 
     def contract() -> dict[str, Any]:
         return load_contract()
 
-    # The published schema is the hand-written contract, not a generated one.
+    # The published schema is the hand-written contract, not a generated one (ADR-006).
     app.openapi = contract  # type: ignore[method-assign]
 
     @app.get("/health", tags=["health"])
     @app.get(f"{settings.api_prefix}/health", tags=["health"])
-    def health() -> dict[str, Any]:
+    def health() -> Health:
         """Liveness probe — also reports which modes the process is running in."""
-        return {
-            "status": "ok",
-            "version": __version__,
-            "app_env": settings.app_env,
-            "auth_mode": settings.auth_mode,
-            "storage_backend": settings.storage_backend,
-        }
+        return Health(
+            status="ok",
+            version=__version__,
+            app_env=settings.app_env,
+            auth_mode=settings.auth_mode,
+            storage_backend=settings.storage_backend,
+        )
+
+    for router in FEATURE_ROUTERS:
+        app.include_router(router, prefix=settings.api_prefix)
 
     @app.get(f"{settings.api_prefix}/openapi.json", include_in_schema=False)
     def openapi_json() -> dict[str, Any]:

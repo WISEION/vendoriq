@@ -13,6 +13,7 @@ from .base import Base, JsonDict, TimestampMixin, pg_enum, uuid_pk
 from .enums import ApplicationStatus, CycleKind, CycleStatus, DecisionKind
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
+    from .evaluation import Evaluation
     from .project import Project
     from .scoring_model import ScoringModel
     from .vendor import Vendor
@@ -81,9 +82,11 @@ class Application(Base, TimestampMixin):
         ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True
     )
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    #: Optional second evaluator's rubric set (spec §10.3).
-    second_rubric: Mapped[JsonDict | None] = mapped_column(nullable=True)
     is_demo: Mapped[bool] = mapped_column(nullable=False, default=False)
 
     vendor: Mapped[Vendor] = relationship(back_populates="applications")
     cycle: Mapped[QualificationCycle] = relationship(back_populates="applications")
+    #: Rubric sets, one per evaluator (spec §10.3). Replaces the old ``second_rubric`` column.
+    evaluations: Mapped[list[Evaluation]] = relationship(
+        back_populates="application", cascade="all, delete-orphan"
+    )

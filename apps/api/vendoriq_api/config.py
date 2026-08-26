@@ -36,8 +36,22 @@ class Settings(BaseSettings):
     auth_mode: AuthMode = "test"
     session_secret: str = "change-me-in-production"
     session_cookie: str = "vendoriq_session"
+    #: Readable companion cookie for the double-submit CSRF check (spec §13, security).
+    csrf_cookie: str = "vendoriq_csrf"
     access_token_ttl_minutes: int = 480
     otp_ttl_minutes: int = 10
+    #: Wrong codes tolerated per issued OTP before it is burned.
+    otp_max_attempts: int = 5
+    #: OTP requests allowed per e-mail address (and per client address) per window.
+    otp_rate_limit: int = 5
+    otp_rate_limit_window_seconds: int = 600
+    #: Password logins tolerated per address per window before ``429``.
+    login_rate_limit: int = 10
+    #: TOTP step and the ± window of steps accepted, RFC 6238 §5.2.
+    totp_step_seconds: int = 30
+    totp_window: int = 1
+    #: Lifetime of a password-accepted, TOTP-pending challenge.
+    totp_challenge_ttl_seconds: int = 300
 
     database_url: str = "postgresql+psycopg://vendoriq:vendoriq@localhost:5432/vendoriq"
     test_database_url: str = "postgresql+psycopg://vendoriq:vendoriq@localhost:5432/vendoriq_test"
@@ -45,6 +59,10 @@ class Settings(BaseSettings):
 
     storage_backend: StorageBackend = "local"
     storage_local_dir: Path = REPO_ROOT / "var" / "storage"
+    #: Lifetime of an upload ticket and of a signed download link.
+    storage_url_ttl_minutes: int = 15
+    #: Largest accepted document, in bytes. PDF only (spec §7).
+    upload_max_bytes: int = 20 * 1024 * 1024
     s3_endpoint_url: str | None = None
     s3_bucket: str = "vendoriq"
     s3_access_key: str | None = None
