@@ -1,0 +1,545 @@
+/**
+ * Vendor portal (screens 4–14). Scoped under a `vp-` prefix so nothing here can collide with
+ * classes another phase-2 task adds to the shared `theme/global.css` — this file is not on
+ * that list of files task 2A may touch, so it stays fully self-contained and just builds on
+ * the design tokens (`theme/tokens.css`) and the handful of shared classes every screen
+ * already uses (`.card`, `.field`, `.mono`, `.muted`, `.btn-primary`, `.btn-secondary`).
+ */
+
+.vp-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.vp-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.vp-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -4px 0 16px;
+}
+
+.vp-card-head h3 {
+  font-size: 15px;
+  margin: 0;
+}
+
+/* ── stepper (screen 4) ──────────────────────────────────────────────── */
+.vp-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  flex-wrap: wrap;
+}
+
+.vp-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  padding: 6px 0;
+}
+
+.vp-step-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 2px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  color: var(--muted);
+  background: var(--card);
+}
+
+.vp-step[data-state='done'] .vp-step-dot {
+  border-color: var(--good);
+  background: var(--good);
+  color: var(--accent-ink);
+}
+
+.vp-step[data-state='current'] {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.vp-step[data-state='current'] .vp-step-dot {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.vp-step[data-state='rejected'] .vp-step-dot {
+  border-color: var(--crit);
+  color: var(--crit);
+}
+
+.vp-step-sep {
+  width: 28px;
+  height: 1px;
+  background: var(--line);
+  margin: 0 8px;
+  flex-shrink: 0;
+}
+
+/* ── pills ───────────────────────────────────────────────────────────── */
+.vp-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: var(--r-pill);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--line-2);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.vp-pill[data-tone='good'] {
+  background: var(--good-soft);
+  color: var(--good);
+}
+
+.vp-pill[data-tone='warn'] {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.vp-pill[data-tone='crit'] {
+  background: var(--crit-soft);
+  color: var(--crit);
+}
+
+.vp-pill[data-tone='accent'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.vp-class-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  font-family: var(--fh);
+  font-weight: 700;
+  font-size: 18px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* ── progress bar ────────────────────────────────────────────────────── */
+.vp-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line-2);
+  overflow: hidden;
+  width: 100%;
+}
+
+.vp-bar > i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+
+/* ── tabs (application form A–G) ─────────────────────────────────────── */
+.vp-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+  margin: 0 0 16px;
+}
+
+.vp-tabs a {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 12px;
+  font-size: 13px;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.vp-tabs a:hover {
+  color: var(--text);
+}
+
+.vp-tabs a[data-active='true'] {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+/* ── form rows ───────────────────────────────────────────────────────── */
+.vp-row-head,
+.vp-row {
+  display: grid;
+  grid-template-columns: 56px minmax(180px, 2fr) 100px minmax(180px, 1.4fr) 72px;
+  gap: 12px;
+  align-items: center;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.vp-row-head {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--line);
+}
+
+.vp-row-header {
+  padding: 14px 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  border-bottom: none;
+}
+
+.vp-row-label {
+  font-size: 13px;
+  color: var(--text);
+  cursor: default;
+}
+
+.vp-row-req {
+  color: var(--crit);
+  font-weight: 700;
+}
+
+.vp-row-format {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.vp-row input,
+.vp-row select {
+  height: 32px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  padding: 0 10px;
+  background: var(--warn-soft);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.vp-row input:disabled {
+  background: var(--line-2);
+  color: var(--muted);
+}
+
+.vp-row input:focus-visible,
+.vp-row select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.vp-row-doc {
+  font-size: 12px;
+  color: var(--doc);
+  text-align: right;
+}
+
+.vp-row-saved {
+  font-size: 11px;
+  color: var(--good);
+}
+
+/* ── table fields (C.t1, C.t2, G.t1) ────────────────────────────────── */
+.vp-table-field {
+  grid-column: 1 / -1;
+  padding: 10px 0 16px;
+}
+
+.vp-table-field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.vp-table-hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.vp-table-hint[data-ok='false'] {
+  color: var(--warn);
+}
+
+.vp-tblwrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+}
+
+.vp-tblwrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.vp-tblwrap th,
+.vp-tblwrap td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--line-2);
+  white-space: nowrap;
+}
+
+.vp-tblwrap th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  background: var(--line-2);
+}
+
+.vp-tblwrap tr:last-child td {
+  border-bottom: none;
+}
+
+.vp-tblwrap input {
+  height: 30px;
+  width: 100%;
+  min-width: 110px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 8px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.vp-table-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ── documents checklist (screen 13) ─────────────────────────────────── */
+.vp-doc-row {
+  display: grid;
+  grid-template-columns: 64px minmax(200px, 2fr) 90px 120px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.vp-doc-row:last-child {
+  border-bottom: none;
+}
+
+.vp-doc-name {
+  font-size: 13px;
+}
+
+.vp-doc-expiry {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ── declaration & submit (screen 14) ───────────────────────────────── */
+.vp-check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 4px;
+}
+
+.vp-check-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.vp-check-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+  background: var(--line-2);
+  color: var(--muted);
+}
+
+.vp-check-item[data-ok='true'] .vp-check-icon {
+  background: var(--good-soft);
+  color: var(--good);
+}
+
+.vp-check-item[data-ok='false'] .vp-check-icon {
+  background: var(--crit-soft);
+  color: var(--crit);
+}
+
+.vp-missing-codes {
+  margin: 2px 0 0 30px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.vp-agree {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  padding: 12px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+}
+
+.vp-agree input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+.vp-declaration-text {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  padding: 14px;
+}
+
+/* ── empty / loading states ──────────────────────────────────────────── */
+.vp-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.vp-next-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vp-next-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  padding: 10px 12px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+}
+
+.vp-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--gap);
+}
+
+.vp-field-static {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vp-field-static dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.vp-field-static dd {
+  margin: 0;
+  font-size: 14px;
+}
+
+.vp-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.vp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.vp-chip[data-checked='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.vp-chip input {
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .vp-row-head {
+    display: none;
+  }
+  .vp-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding: 12px 0;
+  }
+  .vp-row-doc {
+    text-align: left;
+  }
+  .vp-doc-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
