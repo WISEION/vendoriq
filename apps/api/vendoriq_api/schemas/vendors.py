@@ -1,154 +1,28 @@
-"""Request and response shapes, transcribed from ``docs/openapi.yaml``.
+"""The vendor register: vendors, contacts, categories, documents, observations.
 
-These models do **not** generate the published schema (ADR-006 — the hand-written contract
-is served verbatim). They exist so the handlers parse and serialise exactly what the
-contract declares, and ``tests/test_contract_shapes.py`` checks the two against each other.
+Contract tag ``vendors``.
 """
 
 from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
-from typing import Annotated, Any, Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import Field
 
-from .models.enums import (
+from ..models.enums import (
     ApplicationStatus,
     CategoryKind,
     DocumentStatus,
     ObservationSource,
     ScoreClass,
-    UserRole,
     VendorStatus,
     VendorType,
 )
-
-#: ``format: email`` from the contract. ``email-validator`` is a PyPI-only dependency and
-#: PyPI is blocked on the build host (ADR-005), so the shape is enforced by pattern instead:
-#: one ``@``, a dot in the domain, no whitespace. Addresses are lower-cased on the way in so
-#: ``Habib@wesa.az`` and ``habib@wesa.az`` are one account.
-EmailStr = Annotated[
-    str,
-    StringConstraints(
-        strip_whitespace=True,
-        to_lower=True,
-        max_length=255,
-        pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
-    ),
-]
+from .base import EmailStr, Model, PageMeta
 
 
-class Model(BaseModel):
-    """Base: reject unknown keys, so a client typo is a 422 rather than a silent no-op."""
-
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-
-class PageMeta(Model):
-    total: int
-    page: int
-    page_size: int
-
-
-# ── health & auth ───────────────────────────────────────────────────────────
-class Health(Model):
-    status: Literal["ok"]
-    version: str
-    app_env: Literal["development", "staging", "production"]
-    auth_mode: Literal["test", "live"]
-    storage_backend: Literal["local", "s3"]
-
-
-class VendorRegistration(Model):
-    legal_name: str = Field(min_length=2)
-    voen: str = Field(pattern=r"^[0-9]{10}$")
-    type: VendorType
-    contact_name: str
-    position: str | None = None
-    phone: str | None = None
-    email: EmailStr
-    locale: Literal["az", "en"] = "az"
-
-
-class OtpRequest(Model):
-    email: EmailStr
-
-
-class OtpChallenge(Model):
-    email: str
-    expires_at: datetime
-    debug_code: str | None = None
-
-
-class OtpVerification(Model):
-    email: EmailStr
-    code: str = Field(pattern=r"^[0-9]{6}$")
-
-
-class StaffLogin(Model):
-    email: EmailStr
-    password: str
-
-
-class TotpChallenge(Model):
-    challenge_id: uuid.UUID
-    totp_required: bool
-    debug_code: str | None = None
-
-
-class TotpVerification(Model):
-    challenge_id: uuid.UUID
-    code: str = Field(pattern=r"^[0-9]{6}$")
-
-
-class User(Model):
-    id: uuid.UUID
-    email: str
-    full_name: str | None = None
-    role: UserRole
-    vendor_id: uuid.UUID | None = None
-    vendor_name: str | None = None
-    locale: Literal["az", "en"] = "az"
-    is_active: bool
-    has_totp: bool = False
-    last_login_at: datetime | None = None
-
-
-class UserCreated(User):
-    totp_provisioning_uri: str | None = None
-
-
-class UserPage(PageMeta):
-    items: list[User]
-
-
-class UserInput(Model):
-    email: EmailStr
-    full_name: str | None = None
-    role: UserRole
-    vendor_id: uuid.UUID | None = None
-    locale: Literal["az", "en"] | None = None
-    is_active: bool | None = None
-    password: str | None = None
-
-
-class UserRoleInput(Model):
-    role: UserRole
-
-
-class Session(Model):
-    user: User
-    expires_at: datetime
-    csrf_token: str | None = None
-
-
-class Me(User):
-    permissions: list[str] = Field(default_factory=list)
-    auth_mode: Literal["test", "live"] = "test"
-
-
-# ── vendors ─────────────────────────────────────────────────────────────────
 class Vendor(Model):
     id: uuid.UUID
     legal_name: str
@@ -381,74 +255,6 @@ class Application(Model):
     is_demo: bool = False
 
 
-# ── admin & events ──────────────────────────────────────────────────────────
-class MatchingSettings(Model):
-    strong_min: int
-    capacity_ratio: float
-    supplier_turnover_divisor: float
-    default_min_class: ScoreClass
-
-
-class QualificationSettings(Model):
-    validity_months: int
-    pass_mark: float
-    tax_clearance_validity_months: int
-
-
-class FreshnessSettings(Model):
-    financials_months: int
-    headcount_months: int
-    stale_profile_days: int
-
-
-class NotificationSettings(Model):
-    expiry_reminder_days: list[int]
-    expiring_window_days: int
-    email_enabled: bool
-
-
-class OrganisationSettings(Model):
-    name: str
-    default_locale: Literal["az", "en"]
-    currency: Literal["AZN"]
-
-
-class Settings(Model):
-    matching: MatchingSettings
-    qualification: QualificationSettings
-    freshness: FreshnessSettings
-    notifications: NotificationSettings
-    organisation: OrganisationSettings
-
-
-class AuditEvent(Model):
-    id: uuid.UUID
-    actor_id: uuid.UUID | None = None
-    actor_email: str | None = None
-    entity_type: str
-    entity_id: uuid.UUID | None = None
-    action: str
-    before: dict[str, Any] | None = None
-    after: dict[str, Any] | None = None
-    created_at: datetime
-
-
-class AuditEventPage(PageMeta):
-    items: list[AuditEvent]
-
-
-class Event(Model):
-    id: uuid.UUID
-    type: str
-    entity_type: str
-    entity_id: uuid.UUID | None = None
-    payload: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime
-
-
-class EventPage(PageMeta):
-    items: list[Event]
-
-
-# Forward references: VendorDetail names Document before it is declared.
+# `VendorDetail` names `Document` above the line that declares it, so the reference stays a
+# string until the module is fully executed.
 VendorDetail.model_rebuild()
