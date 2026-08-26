@@ -7,6 +7,7 @@ engine can be diffed against the reference implementation.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal, TypedDict
 
@@ -19,9 +20,24 @@ ScoreClassName = Literal["A", "B", "C", "D", "F", "KO"]
 #: Go / no-go state of a package or a project (spec §11).
 MatchStateName = Literal["go", "cond", "nogo"]
 
+#: What a vendor is scored as. ``both`` is scored with the subcontractor model.
+VendorTypeName = Literal["sub", "sup", "both"]
+
+#: Lifecycle of a model version (spec §10.3).
+ModelStatusName = Literal["active", "proposed", "retired"]
+
 #: Raw indicator map: criterion code -> numeric value. ``None`` means "not answered"
 #: and is treated as 0 by the engine, matching ``Number(v) || 0`` in the reference.
 RawIndicators = dict[str, float | int | None]
+
+#: What the engine *reads*. Covariant, so a caller's ``dict[str, float]`` — the natural
+#: shape when raw indicators come out of observations — is accepted without a cast. The
+#: engine never mutates a raw map.
+RawIndicatorsInput = Mapping[str, float | int | None]
+
+#: Application answers as they reach ``derive_raw``: field code → whatever the form or
+#: the importer produced (text, number, date, or a list of table rows).
+AnswerMap = Mapping[str, object]
 
 
 class BandsSpec(TypedDict):
@@ -77,10 +93,10 @@ class ScoringModel:
     """A loaded model version. Immutable — see spec §10.3."""
 
     version: str
-    vendor_type: Literal["sub", "sup", "both"]
+    vendor_type: VendorTypeName
     name_az: str
     name_en: str
-    status: Literal["active", "proposed", "retired"]
+    status: ModelStatusName
     pass_mark: float
     validity_months: int
     currency: str
@@ -144,8 +160,12 @@ class PackageMatch:
     candidates: list[Candidate]
     eligible: list[Candidate]
     strong: list[Candidate]
-    #: The specific gap for a weak package: ``no_vendor_in_category``, ``only_class_c``,
-    #: ``certificate_missing``, ``capacity_too_small``.
+    #: The one change that would move this package towards GO, as an i18n key:
+    #: ``no_vendor_in_category`` (nobody carries the category), ``no_prequalified_vendor``
+    #: (vendors exist, none is prequalified and KO-clean), ``certificate_missing``,
+    #: ``only_class_c`` (the class floor is the binding constraint), ``capacity_too_small``,
+    #: ``too_few_strong`` (eligible A/B vendors exist, fewer than ``strong_min``).
+    #: ``None`` when the package is GO.
     gap: str | None = None
 
 
@@ -177,7 +197,7 @@ class CandidateInput(TypedDict):
 
     id: str
     legal_name: str
-    vendor_type: Literal["sub", "sup", "both"]
+    vendor_type: VendorTypeName
     category_codes: list[str]
     is_prequalified: bool
     raw: RawIndicators

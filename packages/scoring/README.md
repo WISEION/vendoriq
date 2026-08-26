@@ -197,3 +197,54 @@ rendered sentence: the engine returns keys, the frontend translates.
 - `test_supplier_model.py` — `sup-1` group maxima sum to 100 and the lead-time curve.
 - `test_matching.py` — the four package states, the capacity rule for both vendor types, the
   project aggregation, and the TQS-238 96 % coverage case.
+
+---
+
+## 6. Phase 1A — as built
+
+Implemented, `pytest packages/scoring/tests` → **220 passed**, 98 % line coverage, ruff and
+mypy strict clean. The 13/13 Rev4 gate holds with zero mismatches
+(`tests/test_rev4_fixture.py`).
+
+```
+vendoriq_scoring/
+  numbers.py    R1 / R0 / Number(v)||0 / year parsing — the coercion layer
+  engine.py     score_criterion, classify, score
+  derive.py     derive_raw and the Yes/No pre-fill tables
+  matching.py   CLASS_RANK, match_package, match_project
+  loader.py     load_model, model_from_dict
+  cli.py        python -m vendoriq_scoring score|derive
+```
+
+```bash
+python -m vendoriq_scoring score  --model sub-4 --raw raw.json
+python -m vendoriq_scoring derive --answers answers.json --type sub | \
+python -m vendoriq_scoring score  --model sub-4 --raw -
+```
+
+### Deviations from §1–§5, and why
+
+| §  | Contract said | As built | Why |
+|----|---------------|----------|-----|
+| §3 | `derive_raw(answers, vendor_type)` | plus keyword-only `current_year: int \| None` | `A.2` needs a year and the function must stay pure. Defaults to `date.today().year`, so the documented call is unchanged; a re-score of a closed cycle pins the year and stays reproducible (spec §10.3). |
+| §3 | `E.2` = sum of `E.4`…`E.8` | sum of `E.4`…`E.9` | The task brief for 1A says `E.4..E.9`. `E.9` is *Technicians / foremen*, which is arguably not an engineer — **flagged for the orchestrator**; one-line change in `derive.py` either way. |
+| §3 | KO answers `A.1`, `A.4`, `F.1` pre-filled | ten questions pre-filled (`YES_NO_PREFILL_SUB`) | The 1A brief gives the full table: `A.11→A.1`, `A.15→A.4`, `F.1→F.1`, `C.1→C.4`, `B.9→B.3`, `B.12→B.4`, `E.12→E.3`, `G.1→G.1`, `F.5`/`F.8→F.2`. A superset of §3; every entry is still an overridable pre-fill. |
+| §3 | (silent on suppliers) | `YES_NO_PREFILL_SUP`, a deliberate subset | The A–G form is the *subcontractor* form. Only the questions whose supplier criterion means the same thing are mapped (ISO 9001 moves from `C.4` to `F.1`; references move from `G.2` to `G.1`). `sup-1` `C.3` (manufacturer authorisation, a KO) and `D.3` (lead time) have **no form question** — the officer enters them. |
+| §4 | candidates = vendors in the category | same, but non-prequalified vendors stay in the list carrying `not_prequalified` | The reference drops them before scoring, so the UI can only say "nobody". Eligibility, strength and both verdicts are unchanged. |
+| §4 | `gap ∈ {no_vendor_in_category, only_class_c, certificate_missing, capacity_too_small}` | adds `no_prequalified_vendor` and `too_few_strong` | Without them the seed's own data is mislabelled: TQS-238 pk5 (one rejected vendor) came out as `only_class_c`, and pk6 (a single class-A supplier) likewise. Both new keys need an `az`/`en` string. |
+| §2 | `bands`: `v == 0` → `0` | `v == 0` → `spec["zero"]` | Identical for both shipped models (`zero` is 0) and it matches `BandsSpec` in `types.py`; it keeps the JSON self-describing. |
+| §2 | `score(model, raw: RawIndicators)` | `raw: RawIndicatorsInput` (`Mapping`) | `dict` is invariant, so a caller's `dict[str, float]` — the natural shape coming out of observations — could not be passed without a cast. Widening only; `RawIndicators` is unchanged and is still what `derive_raw` returns. |
+
+### Two facts worth knowing before touching this
+
+**The 1.0 that four vendors score is `C.3`, not `A.2`.** `seed/README.md` attributes it to the
+`bands` rule on years in operation. It is not: V02–V04 and V12 have *every* cell `None`, `A.2`
+scores 0, and the single point is `ongoing`'s 25 %-for-zero rung on C.3 (1.0 of 4).
+`tests/test_rev4_fixture.py::test_an_empty_application_still_scores_one` pins the real
+mechanism. The seed README is worth correcting.
+
+**`iso9001` is near-inert for subcontractors.** The rule is `C.4 > 0 or F.1 > 0`, and in
+`sub-4` F.1 is *HSE policy* — a knock-out criterion. Any subcontractor that clears KO therefore
+"has" ISO 9001 even with C.4 at zero. Ported verbatim from the reference and covered by
+`test_the_iso_9001_check_is_near_inert_for_subcontractors`, so that tightening it is a decision
+someone makes on purpose rather than a bug they discover.
