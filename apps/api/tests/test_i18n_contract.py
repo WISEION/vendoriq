@@ -34,9 +34,17 @@ TRANSLATED_ENUMS: tuple[tuple[str, str], ...] = (
 
 
 def _dictionary(language: str) -> dict[str, str]:
+    """The shared dictionary plus every per-feature one, merged as the web app merges them.
+
+    `src/i18n/index.ts` folds `features/<name>.<lang>.json` over the shared file so each
+    phase-2 feature owns its own strings. Reading only the shared file here would make this
+    check blind to exactly the keys the feature teams add — which is most of them.
+    """
     text = (I18N / f"{language}.json").read_text(encoding="utf-8")
-    loaded: dict[str, str] = json.loads(text)
-    return loaded
+    merged: dict[str, str] = json.loads(text)
+    for feature in sorted((I18N / "features").glob(f"*.{language}.json")):
+        merged.update(json.loads(feature.read_text(encoding="utf-8")))
+    return merged
 
 
 def _enum_values(schema: dict[str, Any], prop: str) -> list[str]:
