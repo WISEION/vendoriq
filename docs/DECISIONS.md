@@ -504,3 +504,57 @@ retired, or — briefly, as a draft — neither.
 enforced in the one place it belongs rather than in the place the original brief guessed.
 `services/evaluation.py` documents the distinction at the top of the module, and
 `test_put_evaluation_refuses_a_retired_model_version` pins it.
+
+---
+
+## ADR-018 — The demo layer must produce a system that demonstrates something
+
+**Status:** Accepted (phase 2) · **Decided by:** orchestrator
+
+Task 2C was asked to run TQS-238 through its own endpoints and compare with spec §11.2, and
+**to report a disagreement rather than adjust the engine or the seed to match the prose**. It
+found one, traced it, and reported it. The finding is correct and it matters more than the
+number.
+
+**What it found.** On a database built by `make seed && make seed-demo`, matching returns
+nothing at all: every package comes back `no_vendor_in_category` and the project is NO-GO at
+0 % coverage. Two causes, both in the seed:
+
+1. **All 29 demo category assignments are written `confirmed = false`.** A vendor is only a
+   candidate for a package once an officer has confirmed its category. `seed/common.py`
+   defaults to unconfirmed for a good reason on the real and import paths — nothing should
+   silently confirm a judgement an officer is accountable for — but the demo layer is
+   fabricated data whose entire purpose is to show the system working.
+2. **The four demo suppliers never reach `prequalified`.** They get raw indicators and
+   categories but no `Application`, so `Vendor.status` stays `registered`. `seed/data.json`
+   declares `"status": "prequalified"` for two of them and **nothing consumes that field** — a
+   field that is written and then ignored is worse than no field, because it reads as a fact.
+
+**Why the discrepancy was invisible until now.** `packages/scoring/tests/test_matching.py`
+asserts the spec's 96 % — but `_seed_candidates()` builds its candidates by reading
+`row["status"] == "prequalified"` straight out of `seed/data.json`, never from the database.
+It is a sound unit test of the engine and a **worthless** end-to-end claim, and its name and
+spec reference made it read as the latter. The engine was right the whole time; the seed was
+never checked against it.
+
+**The arithmetic settles which number is correct.** TQS-238 totals 14.7 M, flooring is 0.6 M.
+Only-flooring NO-GO gives 95.9 % → **96 %**, exactly spec §11.2. Flooring plus both material
+packages gives **76 %**, exactly what 2C measured. So the spec is right and the seeded system
+is incomplete — not the reverse.
+
+**Ruling.** In the **demo layer only**, and removable by `make purge-demo` like everything else
+in it:
+
+* demo category assignments are created confirmed, because an unconfirmed demo assignment
+  demonstrates nothing;
+* the four demo suppliers are driven through qualification against `sup-1` so their status is
+  earned rather than asserted, and `seed/data.json`'s `status` field is either consumed or
+  deleted.
+
+Real data is untouched: the 13 vendors keep the Rev4 outcomes they actually received.
+
+**Consequences.** Brief §7.1 promises that a clean start serves the app "with seeded data";
+three of the 34 screens were going to show an empty market on first run. After the fix the
+live system must reproduce 96 % through the API — and that assertion belongs in
+`test_projects.py` against the database, with the engine fixture relabelled as the
+engine-level test it actually is.

@@ -1,0 +1,365 @@
+/*
+ * Cycles, projects and matching (screens 21–24).
+ *
+ * Scoped to this feature: every selector is prefixed `viq-` so it cannot collide with
+ * another feature's stylesheet built in the same tree, and it never touches a bare element
+ * selector or `.card` / `.field` / `.btn-primary` — the shared classes `theme/global.css`
+ * already owns. Colours and shape come from `theme/tokens.css`, never a literal value, so
+ * both themes (light/dark) and the approved palette stay in sync automatically.
+ */
+
+.viq-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.viq-toolbar-spacer {
+  flex: 1 1 auto;
+}
+
+.viq-search {
+  min-width: 220px;
+  padding: 8px 12px;
+  border-radius: var(--r-ctl);
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+}
+
+/* Focus is already visible everywhere via the global `:focus-visible` rule
+   (theme/global.css) — nothing feature-specific to add here. */
+
+.viq-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow);
+  margin-bottom: 16px;
+}
+
+.viq-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: var(--card-pad);
+  border-bottom: 1px solid var(--line-2);
+}
+
+.viq-card-head h2,
+.viq-card-head h3 {
+  margin: 0 0 4px;
+  font-family: var(--fh);
+  font-size: 16px;
+}
+
+.viq-card-body {
+  padding: var(--card-pad);
+}
+
+.viq-card-body.viq-tight {
+  padding: 0;
+}
+
+.viq-table-wrap {
+  overflow-x: auto;
+}
+
+.viq-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.viq-table th,
+.viq-table td {
+  padding: var(--row-pad) 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--line-2);
+  white-space: nowrap;
+}
+
+.viq-table th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.viq-table td.viq-r,
+.viq-table th.viq-r {
+  text-align: right;
+}
+
+.viq-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.viq-table tbody tr.viq-row-link {
+  cursor: pointer;
+}
+
+.viq-table tbody tr.viq-row-link:hover {
+  background: var(--line-2);
+}
+
+.viq-mono {
+  font-family: var(--fm);
+}
+
+.viq-empty {
+  padding: 32px var(--card-pad);
+  text-align: center;
+  color: var(--muted);
+}
+
+/* ── pills: text always carries the state, colour is never the only channel ── */
+.viq-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.viq-pill-go {
+  background: var(--good-soft);
+  color: var(--good);
+}
+
+.viq-pill-cond {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.viq-pill-nogo {
+  background: var(--crit-soft);
+  color: var(--crit);
+}
+
+.viq-pill-neutral {
+  background: var(--line-2);
+  color: var(--muted);
+}
+
+.viq-class {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: var(--r-badge);
+  font-family: var(--fm);
+  font-weight: 700;
+  font-size: 12px;
+  background: var(--line-2);
+  color: var(--text);
+}
+
+.viq-coverage {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.viq-bar {
+  width: 90px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line-2);
+  overflow: hidden;
+}
+
+.viq-bar > i {
+  display: block;
+  height: 100%;
+  background: var(--muted);
+}
+
+.viq-bar.viq-pill-go > i {
+  background: var(--good);
+}
+
+.viq-bar.viq-pill-cond > i {
+  background: var(--warn);
+}
+
+.viq-bar.viq-pill-nogo > i {
+  background: var(--crit);
+}
+
+/* ── forms ── */
+.viq-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.viq-form-grid .field {
+  margin: 0;
+}
+
+.viq-field-span {
+  grid-column: 1 / -1;
+}
+
+.viq-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.viq-checkbox-row input {
+  width: 16px;
+  height: 16px;
+}
+
+.viq-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.viq-actions.viq-end {
+  justify-content: flex-end;
+}
+
+.viq-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.viq-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line);
+  background: var(--paper);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.viq-chip input {
+  margin: 0;
+}
+
+.viq-chip[data-checked='true'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── go/no-go banner ── */
+.viq-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 24px;
+  padding: 16px var(--card-pad);
+  margin-bottom: 16px;
+  border-radius: var(--r-card);
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+
+.viq-banner-metric .viq-label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 4px;
+}
+
+.viq-banner-metric .viq-value {
+  font-family: var(--fh);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.viq-alert {
+  padding: 12px 16px;
+  border-radius: var(--r-ctl);
+  border: 1px solid var(--line);
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.viq-alert-good {
+  background: var(--good-soft);
+  color: var(--good);
+  border-color: transparent;
+}
+
+.viq-alert-warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+  border-color: transparent;
+}
+
+.viq-alert-crit {
+  background: var(--crit-soft);
+  color: var(--crit);
+  border-color: transparent;
+}
+
+.viq-alert-info {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: transparent;
+}
+
+/* ── package result cards on the matching screen ── */
+.viq-package-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.viq-package-meta {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.viq-candidate-ineligible {
+  opacity: 0.55;
+}
+
+.viq-reasons {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.viq-details {
+  margin-top: 16px;
+}
+
+.viq-details > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.viq-fieldset {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
