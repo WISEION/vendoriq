@@ -24,11 +24,19 @@ apps/web/test-results/
 .env.local
 infra/.env
 
-# Local file storage backend (STORAGE_BACKEND=local)
-var/
-storage/
+# Local file storage backend (STORAGE_BACKEND=local).
+#
+# Anchored to the repository root. Unanchored, `storage/` matches a directory of that name at
+# any depth — and it did: it silently excluded `apps/api/vendoriq_api/storage/`, the storage
+# abstraction itself (ADR-002's local and s3 backends), from every commit since phase 0. The
+# working tree had the files, so nothing local ever failed; the first CI run on a fresh clone
+# could not import the application at all.
+/var/
+/storage/
 
 # Editors / OS
 .DS_Store
 .idea/
 .vscode/
+
+
