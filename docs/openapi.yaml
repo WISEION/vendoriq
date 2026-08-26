@@ -3059,11 +3059,30 @@ components:
         package_id: { type: string, format: uuid }
         state: { $ref: "#/components/schemas/MatchState" }
         gap:
+          # An i18n key naming the single change that would move the verdict, not a sentence.
+          # The full vocabulary `_gap()` in packages/scoring/vendoriq_scoring/matching.py can
+          # emit; `no_prequalified_vendor` and `too_few_strong` were missing from this enum.
           type: [string, "null"]
-          enum: [no_vendor_in_category, only_class_c, certificate_missing, capacity_too_small, null]
+          enum:
+            [
+              no_vendor_in_category,
+              no_prequalified_vendor,
+              only_class_c,
+              certificate_missing,
+              capacity_too_small,
+              too_few_strong,
+              null,
+            ]
         candidates:
           type: array
           items: { $ref: "#/components/schemas/MatchCandidate" }
+        missing_certs:
+          type: array
+          description: >-
+            Required certificates no candidate could evidence. A roll-up over the candidate
+            list, not a statement about the package: one hopeless candidate drags its missing
+            certificate in, so read it together with `gap`.
+          items: { type: string }
         eligible_count: { type: integer }
         strong_count: { type: integer }
     MatchCandidate:
@@ -3091,6 +3110,12 @@ components:
                 certificate_missing,
                 capacity_too_small,
               ]
+        missing_certs:
+          description: >-
+            Required certificates this candidate's own scoring model cannot evidence
+            (ADR-011). Resolved against the model the vendor was scored with.
+          type: array
+          items: { type: string }
 
     # ── intelligence ─────────────────────────────────────────────────────────
     IntelOverview:

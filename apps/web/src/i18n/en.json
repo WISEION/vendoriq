@@ -319,5 +319,14 @@
   "vs_send": "Submit application",
   "vs_sent": "Application submitted — now under commission review",
   "vs_sub": "With the director's confirmation the application goes to the commission.",
-  "vs_title": "Declaration & submission"
+  "vs_title": "Declaration & submission",
+  "no_vendor_in_category": "No vendor in this category",
+  "only_class_c": "Only class C vendors available",
+  "certificate_missing": "Required certificate missing",
+  "capacity_too_small": "Capacity too small for the package",
+  "not_prequalified": "Not prequalified",
+  "ko_failed": "Failed a mandatory criterion",
+  "class_below_min": "Class below the package minimum",
+  "iso9001": "ISO 9001",
+  "iso45001": "ISO 45001"
 }

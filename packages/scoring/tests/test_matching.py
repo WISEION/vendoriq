@@ -18,9 +18,11 @@ from vendoriq_scoring import (
     MatchParams,
     PackageInput,
     ProjectInput,
+    load_model,
     match_package,
     match_project,
 )
+from vendoriq_scoring.matching import _certificate_criterion
 
 SEED = Path(__file__).resolve().parents[3] / "seed" / "data.json"
 
@@ -208,9 +210,9 @@ def test_a_required_certificate_that_is_missing_blocks_eligibility() -> None:
     assert result.gap == "certificate_missing"
 
 
-def test_iso_9001_is_satisfied_from_either_model_position() -> None:
-    """C.4 for a subcontractor, F.1 for a supplier — the requirement is one certificate."""
-    subcontractor = vendor("V1", raw={**STRONG_RAW, "C.4": 3})
+def test_iso_9001_is_read_from_each_models_own_criterion() -> None:
+    """C.4 for a subcontractor, F.1 for a supplier — each model's real ISO 9001 cell."""
+    subcontractor = vendor("V1", raw={**STRONG_RAW, "C.4": 3, "F.1": 3})
     supplier_shaped = vendor(
         "S2",
         vendor_type="sup",
@@ -221,17 +223,49 @@ def test_iso_9001_is_satisfied_from_either_model_position() -> None:
     assert all(candidate.certs_ok for candidate in result.candidates)
 
 
-def test_the_iso_9001_check_is_near_inert_for_subcontractors() -> None:
-    """A quirk of the reference, ported deliberately and worth knowing about.
+def test_a_subcontractors_hse_policy_is_not_an_iso_9001_certificate() -> None:
+    """ADR-009, the direction that used to let vendors through.
 
-    ``iso9001`` is satisfied by ``C.4 > 0 or F.1 > 0``. In ``sub-4`` F.1 is *HSE policy*,
-    a knock-out criterion — so any subcontractor that clears KO also "has" ISO 9001 even
-    with C.4 at zero. The requirement therefore only ever bites on suppliers today. This
-    test exists so the day someone tightens the rule, they see it was intentional first.
+    The prototype read ``C.4 > 0 or F.1 > 0`` for every vendor. In ``sub-4`` F.1 is the
+    *HSE policy* knock-out, so every subcontractor that cleared KO also "held" ISO 9001
+    with C.4 at zero — the requirement was inert for the entire subcontractor register.
+    A subcontractor is now checked on C.4 and nothing else.
     """
-    no_iso_but_has_hse = vendor("V1", raw={**STRONG_RAW, "C.4": 0, "F.1": 3})
-    result = match_package(package(required_certs=["iso9001"]), [no_iso_but_has_hse])
+    hse_but_no_iso = vendor("V1", raw={**STRONG_RAW, "C.4": 0, "F.1": 3})
+    result = match_package(package(required_certs=["iso9001"]), [hse_but_no_iso])
+    assert result.candidates[0].certs_ok is False
+    assert result.candidates[0].eligible is False
+    assert "certificate_missing" in result.candidates[0].reasons
+
+
+def test_a_supplier_holds_iso_9001_through_f_1_even_with_c_4_empty() -> None:
+    """ADR-009, the other direction.
+
+    In ``sup-1`` F.1 *is* ISO 9001 and C.4 is product certificates (CE, GOST, test
+    reports). A supplier with the quality-management certificate and no product
+    certificates on file still satisfies an ``iso9001`` requirement.
+    """
+    iso_but_no_product_certs = vendor(
+        "S1",
+        vendor_type="sup",
+        model_version="sup-1",
+        raw={**STRONG_RAW, "C.4": 0, "F.1": 3, "C.3": 3},
+    )
+    result = match_package(package(required_certs=["iso9001"]), [iso_but_no_product_certs])
     assert result.candidates[0].certs_ok is True
+    assert "certificate_missing" not in result.candidates[0].reasons
+
+
+def test_a_supplier_product_certificate_is_not_an_iso_9001_certificate() -> None:
+    """The mirror of the subcontractor case: ``sup-1`` C.4 must not stand in for F.1."""
+    product_certs_but_no_iso = vendor(
+        "S1",
+        vendor_type="sup",
+        model_version="sup-1",
+        raw={**STRONG_RAW, "C.4": 3, "F.1": 0, "C.3": 3},
+    )
+    result = match_package(package(required_certs=["iso9001"]), [product_certs_but_no_iso])
+    assert result.candidates[0].certs_ok is False
 
 
 def test_iso_45001_reads_criterion_f_2() -> None:
@@ -242,10 +276,95 @@ def test_iso_45001_reads_criterion_f_2() -> None:
     assert ok == {"V1": True, "V2": False}
 
 
-def test_an_unknown_certificate_key_passes() -> None:
-    """Informational until a criterion exists for it — it must not silently reject everyone."""
+@pytest.mark.parametrize(
+    ("version", "cert", "expected_code"),
+    [
+        ("sub-4", "iso9001", "C.4"),
+        ("sub-4", "iso45001", "F.2"),
+        ("sup-1", "iso9001", "F.1"),
+        ("sup-1", "iso45001", None),  # sup-1 has no ISO 45001 row; F.2 is defects/returns
+        ("sub-4", "iso27001", None),
+        ("sup-1", "iso27001", None),
+    ],
+)
+def test_the_certificate_criterion_each_model_resolves_to(
+    version: str, cert: str, expected_code: str | None
+) -> None:
+    """Pins the resolution table itself, so a criterion relabel cannot quietly repoint it."""
+    assert _certificate_criterion(cert, load_model(version)) == expected_code
+
+
+def test_a_certificate_is_resolved_against_the_model_the_vendor_was_scored_with() -> None:
+    """ADR-011: ``model_version`` decides, not ``vendor_type``.
+
+    The same raw map, the same vendor type, two models — and two answers, because
+    ``sub-4`` reads ISO 9001 off C.4 while ``sup-1`` reads it off F.1. A ``both`` vendor
+    is the case that forces the question, and the only defensible answer is the rubric
+    its score was actually produced with.
+    """
+    holds_c_4_only = {**STRONG_RAW, "C.4": 3, "F.1": 0, "C.3": 3}
+    as_subcontractor = vendor(
+        "B1", vendor_type="both", model_version="sub-4", raw={**holds_c_4_only, "F.1": 3}
+    )
+    as_supplier = vendor("B2", vendor_type="both", model_version="sup-1", raw=holds_c_4_only)
+
+    scored_with_sub_4 = match_package(package(required_certs=["iso9001"]), [as_subcontractor])
+    assert scored_with_sub_4.candidates[0].certs_ok is True
+
+    scored_with_sup_1 = match_package(package(required_certs=["iso9001"]), [as_supplier])
+    assert scored_with_sup_1.candidates[0].certs_ok is False
+    assert scored_with_sup_1.candidates[0].missing_certs == ["iso9001"]
+
+
+def test_a_certificate_the_model_cannot_evidence_is_not_held() -> None:
+    """ADR-011: no criterion, no verification, no certificate.
+
+    ``sup-1`` has no ISO 45001 row at all — F.2 there is the *defect / return record*.
+    Passing the requirement would report a check that never ran, and a false positive is
+    the dangerous direction: it puts an unverified vendor on a shortlist silently, while
+    this false negative is printed on the screen for the manager to overrule.
+    """
+    supplier = vendor(
+        "S1",
+        vendor_type="sup",
+        model_version="sup-1",
+        raw={**STRONG_RAW, "F.2": 3, "C.3": 3},
+    )
+    result = match_package(package(min_class="F", required_certs=["iso45001"]), [supplier])
+    assert result.candidates[0].certs_ok is False
+    assert result.candidates[0].eligible is False
+    assert result.candidates[0].reasons == ["certificate_missing"]
+    assert result.candidates[0].missing_certs == ["iso45001"]
+    assert result.state == "nogo"
+    assert result.gap == "certificate_missing"
+
+
+def test_the_missing_certificate_is_named_on_the_candidate_and_the_package() -> None:
+    """The gap key says *what* is wrong; ``missing_certs`` says *which* certificate."""
+    no_iso = vendor("V1", raw={**STRONG_RAW, "C.4": 0, "F.2": 0})
+    result = match_package(package(min_class="F", required_certs=["iso9001", "iso45001"]), [no_iso])
+    assert result.candidates[0].missing_certs == ["iso9001", "iso45001"]
+    assert result.gap == "certificate_missing"
+    assert result.missing_certs == ["iso45001", "iso9001"]  # sorted union across candidates
+
+
+def test_a_satisfied_requirement_names_nothing() -> None:
+    result = match_package(package(required_certs=["iso9001"]), [vendor("V1"), vendor("V2")])
+    assert result.state == "go"
+    assert result.missing_certs == []
+    assert all(candidate.missing_certs == [] for candidate in result.candidates)
+
+
+def test_an_unknown_certificate_key_is_not_held() -> None:
+    """ADR-011 reversed the old "unknown key passes" rule, for the same reason.
+
+    ``iso27001`` has no criterion in any shipped model and no entry in the standards
+    table, so nothing about it was ever checked. It is reported missing rather than
+    waved through.
+    """
     result = match_package(package(required_certs=["iso27001"]), [vendor("V1")])
-    assert result.candidates[0].certs_ok is True
+    assert result.candidates[0].certs_ok is False
+    assert result.candidates[0].missing_certs == ["iso27001"]
 
 
 # ---------------------------------------------------------------------------- sorting
@@ -404,6 +523,50 @@ def test_the_material_packages_are_matched_against_the_supplier_model() -> None:
     assert [candidate.vendor_id for candidate in concrete.eligible] == ["S02"]
     assert concrete.state == "cond"  # a single strong supplier is not a tender
     assert concrete.gap == "too_few_strong"
+
+
+def test_no_material_package_in_the_seed_requires_a_certificate() -> None:
+    """The blast radius of ADR-011, pinned so a seed edit has to face it.
+
+    Suppliers can no longer evidence ``iso45001`` at all (``sup-1`` has no such
+    criterion), so the day a material package asks for one, every supplier goes
+    ineligible and the package turns NO-GO. Today none does: ``iso9001`` is required on
+    TQS-238 pk1 (facade) and TQS-301 pk1 (steel), ``iso45001`` on TQS-238 pk3 (MEP) —
+    all three are work packages matched against ``sub-4``.
+    """
+    seed = _seed()
+    supplier_categories = {cat for row in seed["suppliers"] for cat in row["cats"]}
+    demanding = [
+        (project["code"], pkg["id"], pkg["cat"], pkg["certs"])
+        for project in seed["projects"]
+        for pkg in project["packages"]
+        if pkg["certs"]
+    ]
+    assert demanding == [
+        ("TQS-238", "pk1", "facade", ["iso9001"]),
+        ("TQS-238", "pk3", "mep", ["iso45001"]),
+        ("TQS-301", "pk1", "steel", ["iso9001"]),
+    ]
+    assert all(category not in supplier_categories for _, _, category, _ in demanding)
+
+
+def test_the_mep_package_still_matches_on_sub_4_certificates() -> None:
+    """pk3 is the seed's only ISO 45001 package, and ADR-011 leaves it exactly as it was.
+
+    It is matched against ``sub-4``, where F.2 carries the standard, so the certificate
+    is still evidenced and the package is still CONDITIONAL on one strong vendor —
+    nothing about it turns on the supplier-side gap.
+    """
+    result = match_project(_tqs_238(), _seed_candidates())
+    mep = next(pkg for pkg in result.packages if pkg.package_id == "pk3")
+    assert mep.state == "cond"
+    assert mep.gap == "too_few_strong"
+    assert [candidate.vendor_id for candidate in mep.eligible] == ["V13"]
+    assert all(candidate.certs_ok for candidate in mep.eligible)
+    # V02 submitted a blank form, so the certificate is one of the many things it lacks —
+    # the roll-up reports the certificate that blocked *a* candidate, not the package.
+    assert mep.missing_certs == ["iso45001"]
+    assert [c.vendor_id for c in mep.candidates if c.missing_certs] == ["V02"]
 
 
 def test_relaxing_the_strong_minimum_would_not_save_tqs_238() -> None:

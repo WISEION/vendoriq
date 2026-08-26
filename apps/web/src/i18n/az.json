@@ -319,5 +319,14 @@
   "vs_send": "Müraciəti göndər",
   "vs_sent": "Müraciət göndərildi — komissiya baxışına keçdi",
   "vs_sub": "Rəhbər təsdiqi ilə müraciət komissiyaya göndərilir.",
-  "vs_title": "Bəyannamə və göndəriş"
+  "vs_title": "Bəyannamə və göndəriş",
+  "no_vendor_in_category": "Bu kateqoriyada vendor yoxdur",
+  "only_class_c": "Yalnız C sinifli vendorlar var",
+  "certificate_missing": "Tələb olunan sertifikat yoxdur",
+  "capacity_too_small": "Kapasitet paket üçün kifayət etmir",
+  "not_prequalified": "Prekvalifikasiya keçməyib",
+  "ko_failed": "Məcburi meyardan keçməyib",
+  "class_below_min": "Sinif paketin minimumundan aşağıdır",
+  "iso9001": "ISO 9001",
+  "iso45001": "ISO 45001"
 }

@@ -2369,8 +2369,10 @@ export interface components {
             package_id: string;
             state: components["schemas"]["MatchState"];
             /** @enum {string|null} */
-            gap?: "no_vendor_in_category" | "only_class_c" | "certificate_missing" | "capacity_too_small" | null;
+            gap?: "no_vendor_in_category" | "no_prequalified_vendor" | "only_class_c" | "certificate_missing" | "capacity_too_small" | "too_few_strong" | null;
             candidates: components["schemas"]["MatchCandidate"][];
+            /** @description Required certificates no candidate could evidence. A roll-up over the candidate list, not a statement about the package: one hopeless candidate drags its missing certificate in, so read it together with `gap`. */
+            missing_certs?: string[];
             eligible_count?: number;
             strong_count?: number;
         };
@@ -2387,6 +2389,8 @@ export interface components {
             eligible: boolean;
             /** @description Why a candidate is not eligible. */
             reasons?: ("not_prequalified" | "ko_failed" | "class_below_min" | "certificate_missing" | "capacity_too_small")[];
+            /** @description Required certificates this candidate's own scoring model cannot evidence (ADR-011). Resolved against the model the vendor was scored with. */
+            missing_certs?: string[];
         };
         IntelOverview: {
             vendors_total: number;
