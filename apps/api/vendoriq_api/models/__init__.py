@@ -35,7 +35,7 @@ from .enums import (
 )
 from .evaluation import Evaluation
 from .events import AuditEvent, Event
-from .integration import SyncLog, Webhook
+from .integration import AdapterConfig, ImportPreview, SyncLog, Webhook
 from .observation import FieldObservation
 from .performance import PerformanceRecord
 from .project import MatchRun, Project, WorkPackage
@@ -47,6 +47,7 @@ from .vendor import Contact, Vendor
 __all__ = [
     "CONTRACT_ADAPTER_KEYS",
     "SOURCE_TRUST_RANK",
+    "AdapterConfig",
     "AdapterKey",
     "ApiKey",
     "Application",
@@ -66,6 +67,7 @@ __all__ = [
     "Event",
     "EventType",
     "FieldObservation",
+    "ImportPreview",
     "MatchRun",
     "MatchState",
     "ObservationSource",

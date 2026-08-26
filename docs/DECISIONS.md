@@ -398,3 +398,45 @@ avoid elsewhere.
 about what changed between versions, not an overflow bucket. The phase-2D model editor can
 create a version with a bilingual name, a status and its group headings without a schema change.
 `alembic check` reports no drift; the migration was applied, rolled back and re-applied.
+
+---
+
+## ADR-015 — The dependency licence position, and why `fpdf2` is acceptable
+
+**Status:** Accepted (phase 2) · **Decided by:** orchestrator
+
+Task 2B added `fpdf2` (PDF commission summary), `openpyxl` (already transitive, now declared
+directly) and `fonts-dejavu-core` to the API image. `fpdf2` is **LGPL-3.0-only**, the first
+copyleft dependency anyone deliberately chose, so it was worth checking before accepting.
+
+A sweep of all 75 installed distributions puts it in context:
+
+| Licence | Packages |
+|---|---|
+| LGPL-3.0-only | **`psycopg`**, `psycopg-binary`, `fpdf2` |
+| MPL-2.0 | `certifi`, `pathspec` |
+| MIT / BSD / Apache-2.0 | everything else |
+
+`psycopg` is the PostgreSQL driver, fixed by ADR-001 and unavoidable — psycopg2 and psycopg3
+are both LGPL, and no permissive driver exists for this stack. **The project therefore already
+carries LGPL-3.0 for the one component it cannot run without.** `fpdf2` adds no obligation that
+was not already there.
+
+All five are used as unmodified libraries, imported at runtime and installed from PyPI by the
+resolver: exactly the use LGPL §4 and MPL §3.3 permit, and the recipient can replace any of
+them (`uv remove fpdf2`) without touching VendorIQ's own code. Nothing here is statically
+linked or vendored.
+
+**The DejaVu font is not incidental.** PDF core fonts are Latin-1; Azerbaijani needs ə, ğ, ş,
+ı, ö, ü, ç. Without an embedded Unicode font the commission summary — the sheet the commission
+chair signs — renders vendor names wrongly in the language the document is written in.
+
+**Consequences.** `docs/REPORT.md` states this position so the owner's counsel sees the whole
+copyleft surface in one place rather than discovering `fpdf2` alone. Should the owner's policy
+forbid LGPL outright, the conclusion is not "swap `fpdf2`" but "change the database driver",
+which is an ADR-001 decision — and that is precisely why the position is recorded rather than
+left implicit.
+
+**Process note, not a decision.** Task 2B edited `apps/api/pyproject.toml`, `uv.lock` and
+`infra/Dockerfile.api` — none of which it owns — instead of filing a change request as briefed.
+The dependency itself is the right call and is kept; the rule stands, and the worker was told.

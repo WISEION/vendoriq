@@ -68,6 +68,9 @@ class ApiKey(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     #: Only the hash is stored; the plaintext key is shown once at creation.
     hashed_key: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    #: First characters of the key, so a person can tell two keys apart in the list without
+    #: the plaintext ever being retrievable. Declared by the contract's ``ApiKey``.
+    prefix: Mapped[str | None] = mapped_column(String(16))
     #: e.g. ``["vendors:read", "projects:write"]``.
     scopes: Mapped[JsonList] = mapped_column(nullable=False, default=list)
     created_by: Mapped[uuid.UUID | None] = mapped_column(

@@ -2143,7 +2143,7 @@ components:
       type: object
       required: [total, page, page_size]
       properties:
-        total: { type: integer, description: Rows matching the filter, not rows on this page. }
+        total: { type: integer, description: "Rows matching the filter, not rows on this page." }
         page: { type: integer }
         page_size: { type: integer }
 
@@ -2497,7 +2497,7 @@ components:
           type: [object, array, string, number, boolean, "null"]
         unit: { type: [string, "null"] }
         source: { $ref: "#/components/schemas/ObservationSource" }
-        source_ref: { type: [string, "null"], description: File key, API call id or import run id. }
+        source_ref: { type: [string, "null"], description: "File key, API call id or import run id." }
         observed_at: { type: string, format: date-time }
         entered_by: { type: [string, "null"], format: uuid }
         trust_rank: { type: integer, minimum: 1, maximum: 9 }
@@ -2697,7 +2697,7 @@ components:
           type: object
           additionalProperties: { type: number }
           description: Points per group letter, rounded to one decimal after each addition.
-        total: { type: number, description: Sum of the group totals, rounded to one decimal. }
+        total: { type: number, description: "Sum of the group totals, rounded to one decimal." }
         ko: { type: boolean, description: False when any knock-out criterion has a raw value of 0. }
         cls: { $ref: "#/components/schemas/ScoreClass" }
         pass_mark: { type: number }
@@ -3093,7 +3093,7 @@ components:
         legal_name: { type: string }
         total: { type: number }
         cls: { $ref: "#/components/schemas/ScoreClass" }
-        capacity_value: { type: number, description: Largest completed project, or turnover ÷ divisor for suppliers. }
+        capacity_value: { type: number, description: "Largest completed project, or turnover ÷ divisor for suppliers." }
         capacity_fit: { type: boolean }
         certs_ok: { type: boolean }
         eligible: { type: boolean }
@@ -3288,9 +3288,17 @@ components:
               items: { $ref: "#/components/schemas/SyncLog" }
     ImportWarning:
       type: object
-      required: [code, message_az, message_en]
+      required: [code, severity, message_az, message_en]
       properties:
+        severity:
+          # An officer triaging 8 warnings needs to know which one blocks the import. A stale
+          # tax certificate is not the same finding as a percentage written two ways.
+          type: string
+          enum: [error, warning, info]
         code:
+          # The importer's full vocabulary. Three codes were missing, and the WESA fixture
+          # produces two of them, so the contract could not describe anomalies the officer
+          # is actually shown.
           type: string
           enum:
             - stale_certificate
@@ -3301,6 +3309,9 @@ components:
             - currency_label_mismatch
             - unknown_field_code
             - unparsable_date
+            - unparsable_value
+            - document_status_missing
+            - missing_sheet
         field_code: { type: [string, "null"] }
         sheet: { type: [string, "null"] }
         cell: { type: [string, "null"] }
@@ -3354,7 +3365,7 @@ components:
         scopes:
           type: array
           items: { $ref: "#/components/schemas/Scope" }
-        prefix: { type: string, description: First characters of the key, so it can be identified. }
+        prefix: { type: string, description: "First characters of the key, so it can be identified." }
         created_by: { type: [string, "null"], format: uuid }
         created_at: { type: string, format: date-time }
         last_used_at: { type: [string, "null"], format: date-time }
@@ -3464,7 +3475,7 @@ components:
           properties:
             validity_months: { type: integer }
             pass_mark: { type: number }
-            tax_clearance_validity_months: { type: integer, description: A-05, three months. }
+            tax_clearance_validity_months: { type: integer, description: "A-05 tax clearance, valid three months from issue." }
         freshness:
           type: object
           properties:
