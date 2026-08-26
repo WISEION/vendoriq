@@ -49,6 +49,7 @@ from ..services import applications as applications_service
 from ..services import audit
 from ..services import categories as categories_service
 from .common import (
+    PREQUALIFYING_CLASSES,
     ensure_observations,
     get_or_create_contact,
     get_or_create_project,
@@ -70,8 +71,6 @@ from .errors import SeedError
 CYCLE_NAME = "TQS2026006 Rev4"
 #: The one project named as a real fact alongside them (brief §1.10).
 PROJECT_CODE = "TQS-238"
-#: Classes the Rev4 process invites; the rest is rejected (brief §1.6, §1.10).
-PREQUALIFYING_CLASSES = frozenset({"A", "B", "C"})
 
 
 @dataclass(slots=True)

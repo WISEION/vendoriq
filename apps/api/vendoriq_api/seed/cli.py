@@ -115,10 +115,15 @@ def _print_real_summary(summary: RealSummary) -> None:
 
 def _print_demo_summary(summary: DemoSummary) -> None:
     print("== VendorIQ seed: demo layer ==")
-    print(f"  category links    {summary.category_assignments_created} created")
+    print(f"  category links    {summary.category_assignments_created} created, confirmed")
     print(f"  suppliers         {summary.suppliers_created} created")
     print(f"  supplier contacts {summary.supplier_contacts_created} created")
     print(f"  supplier obs.     {summary.supplier_observations_created} recorded")
+    print(
+        f"  supplier qual.    {summary.supplier_applications_created} applications created "
+        f"against sup-1 — {summary.suppliers_prequalified} prequalified, "
+        f"{summary.suppliers_rejected} rejected"
+    )
     print(f"  projects          {summary.projects_created} created (TQS-301)")
     print(f"  work packages     {summary.work_packages_created} created")
     print(f"  documents         {summary.documents_created} created")

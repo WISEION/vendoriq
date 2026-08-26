@@ -1,0 +1,29 @@
+{
+  "d": {
+    "results": [
+      {
+        "__metadata": {
+          "uri": "https://sap.example.local/sap/opu/odata/sap/ZVENDOR_SRV/VendorSet('1000000003')",
+          "type": "ZVENDOR_SRV.Vendor"
+        },
+        "Lifnr": "0001000003",
+        "Name1": "Fixture Steel Supply MMC",
+        "Stceg": "1000000003",
+        "Gjahr": "2013",
+        "Financials": {
+          "AnnualTurnoverAvg3Y": "12 400 000.00",
+          "Equity": "3 100 000.00"
+        },
+        "Headcount": {
+          "Total": "152",
+          "Engineers": "23"
+        },
+        "Projects": {
+          "Completed": "18",
+          "LargestValue": "9 800 000.00",
+          "Ongoing": "4"
+        }
+      }
+    ]
+  }
+}

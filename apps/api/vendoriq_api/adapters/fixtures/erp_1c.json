@@ -1,0 +1,39 @@
+{
+  "odata.metadata": "http://erp.example.local/vendoriq/odata/standard.odata/$metadata#Catalog_Kontragenty",
+  "value": [
+    {
+      "Ref_Key": "8f0a1c22-0000-0000-0000-000000000001",
+      "Naimenovanie": "Fixture Construction MMC",
+      "INN": "1000000001",
+      "DataRegistracii": "2011-03-14T00:00:00",
+      "Pokazateli": {
+        "VyruchkaSredniaya3Goda": "4 812 500,00",
+        "SobstvennyKapital": 1150000,
+        "ChislennostPersonala": 64,
+        "ChislennostITR": 9
+      },
+      "Proekty": {
+        "Zavershennye": 7,
+        "MaksimalnayaStoimost": 5250000,
+        "Tekushchie": 3
+      }
+    },
+    {
+      "Ref_Key": "8f0a1c22-0000-0000-0000-000000000002",
+      "Naimenovanie": "Fixture Mechanical MMC",
+      "INN": "1000000002",
+      "DataRegistracii": "2018-06-01T00:00:00",
+      "Pokazateli": {
+        "VyruchkaSredniaya3Goda": 980450.5,
+        "SobstvennyKapital": 214000,
+        "ChislennostPersonala": 21,
+        "ChislennostITR": 4
+      },
+      "Proekty": {
+        "Zavershennye": 3,
+        "MaksimalnayaStoimost": 640000,
+        "Tekushchie": 1
+      }
+    }
+  ]
+}

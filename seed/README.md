@@ -25,7 +25,7 @@ flag — not a truncate — which is why the flag is a column rather than a nami
 | Key | Contents | Real or demo |
 |---|---|---|
 | `vendors` | 13 legal entities: name, VÖEN, registration year, address, contact, phone, e-mail, website, staff, engineers, `raw` indicators, `docs`, `cats` | **Real**, except `cats` (category assignments) and `docs` expiry dates, which are illustrative |
-| `suppliers` | 4 material suppliers | **Demo** |
+| `suppliers` | 4 material suppliers, their `raw` indicators and category codes. No `status` field — see "Demo suppliers are qualified, not asserted" below. | **Demo** |
 | `projects` | `TQS-238 Gənclik Bahar Residence` (Uni Ko QSC, contact Əli Məmmədov) and `TQS-301 Xəzər Logistics Park` | TQS-238 is **real**; its work-package breakdown and TQS-301 are **demo** |
 | `form` | Sections A–G, each row `[code, question_az, question_en, type, document_code]` — spec Appendix A | **Real** |
 | `docs` | 30 checklist rows `[code, name_az, name_en, mandatory]` — spec Appendix B | **Real** |
@@ -62,6 +62,32 @@ whose curve gives a **25 % floor even at zero** (`0 → 25 %, ≤3 → 50 %, ≤
 brief §1.2): `R1(4 × 0.25) = 1.0`, and every other criterion on an empty submission is 0.
 Reproducing that 1 is part of the test — it is the cheapest proof that the `ongoing` curve's
 zero-floor was ported correctly and not "simplified" to zero like every other empty answer.
+
+### Demo suppliers are qualified, not asserted (ADR-018)
+
+`data.json.suppliers` used to carry a `status` field (`"prequalified"` for S01/S02,
+`"under_review"`/`"invited"` for S03/S04). Nothing computed it, and nothing checked it against
+the suppliers' own `raw` indicators — a fabricated fact sitting next to the real one the engine
+would have produced anyway. It is gone. In its place, `load --demo` drives all four suppliers
+through a real qualification against `sup-1`: a real `Application` (cycle "Demo supplier
+qualification (sup-1)", itself `is_demo=true`), a real `vendoriq_scoring.score`, the same
+state-machine transitions `real.py` drives the 13 subcontractors through. Recomputing today:
+
+| Id | Supplier | Computed total | Class | KO | Result |
+|---|---|---|---|---|---|
+| S01 | Caspian Steel Supply | 90.3 | A | passed | prequalified |
+| S02 | Baku Beton | 94.7 | A | passed | prequalified |
+| S03 | AzGlass Systems | 64.8 | D | passed | rejected (below pass mark 70) |
+| S04 | Nur Elektrik Tədarük | 55.3 | KO | **failed** (`A.4` = 0) | rejected |
+
+S01/S02 land where the deleted field used to claim; S03/S04 do not — they were never claimed to
+(`under_review`/`invited` were never final states either), and now nothing pretends they are.
+If a future edit to `data.json.suppliers[].raw` moves one of these across the pass mark, this
+table goes stale — that is a fixture problem to fix here, not a discrepancy to code around.
+
+Their category assignments are also `confirmed: true` (see the next section) — a fabricated
+demo record has no officer to wait for, and the demo layer exists to *show* matching, not to
+half-populate it.
 
 ### `fixtures/` — importer test files
 
@@ -104,6 +130,15 @@ The names carry a hash prefix because that is how the files arrived; do not rena
   observations), then the real project and the qualification cycle (`load --real`); category
   assignments, demo suppliers, work packages and document expiry rows last (`load --demo`,
   which requires `load --real` to have already run).
+* **The demo layer is confirmed and qualified, not just populated (ADR-018).** A category
+  assignment defaults to `confirmed: false` everywhere in this codebase — spec §11.1 makes
+  confirming one an officer's judgement, and the seed is not an officer. The demo layer is the
+  one deliberate exception: `load --demo` passes `confirmed=True` for the 13 vendors' and the 4
+  suppliers' demo category links, because fabricated data has no officer to wait for and its
+  whole purpose is to demonstrate matching working. The 4 suppliers are, likewise, driven
+  through a real qualification against `sup-1` rather than given an asserted status — see
+  "Demo suppliers are qualified, not asserted" above. Both are demo-layer-only: the real
+  import/officer path's default (`confirmed=False`, no auto-decided application) is untouched.
 * **Provenance is split, not uniform.** ADR-004 ("no `vendor.turnover` column") is about
   *scoring* fields — there genuinely is no such column. Vendor identity — legal name, VÖEN,
   registration year, address, region, website — **is** a `Vendor` column (`models/vendor.py`),

@@ -7,11 +7,12 @@ CONTRIBUTING, "repositories own the queries".
 
 from __future__ import annotations
 
+import io
 import uuid
 from collections import OrderedDict
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from ..catalog import days_to_expiry
 from ..config import Settings, get_settings
@@ -34,6 +35,7 @@ from ..schemas import (
     Document,
     DocumentPatch,
     DownloadTicket,
+    EvaluationSummary,
     FieldObservation,
     FieldObservationPage,
     InviteInput,
@@ -64,6 +66,12 @@ from ..services import (
 )
 from ..services import (
     documents as documents_service,
+)
+from ..services import (
+    evaluation as evaluation_service,
+)
+from ..services import (
+    exports as exports_service,
 )
 from ..services import (
     observations as observations_service,
@@ -161,6 +169,20 @@ def document_payload(row: documents_service.ChecklistRow, vendor_id: uuid.UUID) 
     )
 
 
+def evaluation_summary_payload(row: evaluation_service.VendorHistoryRow) -> EvaluationSummary:
+    computed = row.computed or {}
+    cls_value = computed.get("cls")
+    return EvaluationSummary(
+        application_id=row.application_id,
+        cycle_name=row.cycle_name,
+        model_version=row.model_version,
+        total=computed.get("total"),
+        cls=ScoreClass(cls_value) if cls_value in set(ScoreClass) else None,
+        decision=row.decision.value if row.decision else None,
+        decided_at=row.decided_at,
+    )
+
+
 def observation_payload(row: Any, current: set[uuid.UUID]) -> FieldObservation:
     return FieldObservation(
         id=row.id,
@@ -246,6 +268,48 @@ def create_vendor(
     return vendor_payload(uow, vendor)
 
 
+@router.get("/vendors/export.xlsx")
+def export_vendors(
+    type: VendorType | None = None,
+    category: Annotated[list[str] | None, Query()] = None,
+    cls: Annotated[list[ScoreClass] | None, Query(alias="class")] = None,
+    status_filter: Annotated[list[VendorStatus] | None, Query(alias="status")] = None,
+    region: str | None = None,
+    q: str | None = None,
+    locale: Literal["az", "en"] = "az",
+    uow: UnitOfWork = Depends(get_uow),
+    principal: Principal = Depends(require("exportVendors")),
+) -> Response:
+    """The filtered register as an Excel workbook — the same filters ``listVendors`` takes.
+
+    Registered before ``/vendors/{vendor_id}`` (as the contract itself orders the two paths):
+    a dynamic ``{vendor_id}`` segment matches any literal string at the routing layer, type
+    coercion happens only afterwards, so ``export.xlsx`` must be matched first or it would
+    never reach this handler.
+    """
+    filters = vendors_service.VendorFilters(
+        type=type,
+        categories=category or (),
+        classes=cls or (),
+        statuses=status_filter or (),
+        region=region,
+        q=q,
+    )
+    workbook = exports_service.build_vendor_register_workbook(
+        uow.session,
+        filters,
+        principal_vendor_id=principal.vendor_id if principal.is_vendor else None,
+        locale=locale,
+    )
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="vendors.xlsx"'},
+    )
+
+
 @router.get("/vendors/{vendor_id}")
 def get_vendor(
     vendor_id: uuid.UUID,
@@ -271,7 +335,10 @@ def get_vendor(
             document_payload(row, vendor.id)
             for row in documents_service.checklist(uow.session, vendor)
         ],
-        evaluations=[],
+        evaluations=[
+            evaluation_summary_payload(row)
+            for row in evaluation_service.vendor_history(uow.session, vendor.id)
+        ],
         stale_fields=observations_service.stale_field_codes(
             uow.session, vendor.id, windows=windows
         ),

@@ -1585,6 +1585,9 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/SyncLog" }
         "404": { $ref: "#/components/responses/NotFound" }
+        # The preview exists but can no longer be acted on: already imported, or past its
+        # expiry. `details.reason` is `consumed` or `expired`.
+        "409": { $ref: "#/components/responses/Conflict" }
   /integrations/api-keys:
     get:
       tags: [integrations]
@@ -3275,8 +3278,55 @@ components:
         fields_written: { type: integer }
         warnings:
           type: array
-          items: { $ref: "#/components/schemas/ImportWarning" }
+          items: { $ref: "#/components/schemas/SyncWarning" }
         result: { $ref: "#/components/schemas/SyncResult" }
+
+    # What an adapter *run* can report. A superset of `ImportWarning`, not a sibling: the
+    # Excel importer is an adapter like any other, so a run's log carries parser anomalies
+    # (`stale_certificate`, addressed to a sheet and a cell) as readily as transport failures
+    # (`source_unreachable`, addressed to nothing of the sort). The location fields are
+    # therefore optional here and required nowhere.
+    #
+    # `ImportPreview.warnings` keeps the narrower `ImportWarning`, which is the useful half of
+    # the distinction: parsing a workbook cannot fail to reach a host, so a client rendering a
+    # preview will never meet the transport codes.
+    SyncWarning:
+      type: object
+      required: [code, severity, message_az, message_en]
+      properties:
+        code:
+          type: string
+          enum:
+            # parser anomalies — same vocabulary as ImportWarning
+            - stale_certificate
+            - mixed_percent_format
+            - multi_value_cell
+            - no_expiry_literal
+            - mandatory_cell_empty
+            - currency_label_mismatch
+            - unknown_field_code
+            - unparsable_date
+            - unparsable_value
+            - document_status_missing
+            - missing_sheet
+            # failures of the run itself
+            - source_unreachable
+            - source_error_status
+            - source_unparsable
+            - adapter_not_configured
+            - adapter_disabled
+            - adapter_no_field_map
+            - registry_not_configured
+            - mock_record_not_found
+            - workbook_not_found
+            - workbook_unreadable
+        severity: { type: string, enum: [error, warning, info] }
+        field_code: { type: [string, "null"] }
+        sheet: { type: [string, "null"] }
+        cell: { type: [string, "null"] }
+        raw_value: { type: [string, "null"] }
+        message_az: { type: string }
+        message_en: { type: string }
     SyncLogPage:
       allOf:
         - $ref: "#/components/schemas/PageMeta"

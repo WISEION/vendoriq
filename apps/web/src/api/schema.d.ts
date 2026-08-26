@@ -1612,7 +1612,7 @@ export interface components {
             };
         };
         PageMeta: {
-            /** @description Rows matching the filter */
+            /** @description Rows matching the filter, not rows on this page. */
             total: number;
             page: number;
             page_size: number;
@@ -1882,7 +1882,7 @@ export interface components {
             value: Record<string, never> | unknown[] | string | number | boolean | null;
             unit?: string | null;
             source: components["schemas"]["ObservationSource"];
-            /** @description File key */
+            /** @description File key, API call id or import run id. */
             source_ref?: string | null;
             /** Format: date-time */
             observed_at: string;
@@ -2065,7 +2065,7 @@ export interface components {
             groups: {
                 [key: string]: number;
             };
-            /** @description Sum of the group totals */
+            /** @description Sum of the group totals, rounded to one decimal. */
             total: number;
             /** @description False when any knock-out criterion has a raw value of 0. */
             ko: boolean;
@@ -2382,7 +2382,7 @@ export interface components {
             legal_name: string;
             total: number;
             cls: components["schemas"]["ScoreClass"];
-            /** @description Largest completed project */
+            /** @description Largest completed project, or turnover ÷ divisor for suppliers. */
             capacity_value?: number;
             capacity_fit?: boolean;
             certs_ok?: boolean;
@@ -2528,15 +2528,29 @@ export interface components {
             /** Format: date-time */
             finished_at?: string | null;
             fields_written: number;
-            warnings?: components["schemas"]["ImportWarning"][];
+            warnings?: components["schemas"]["SyncWarning"][];
             result: components["schemas"]["SyncResult"];
+        };
+        SyncWarning: {
+            /** @enum {string} */
+            code: "stale_certificate" | "mixed_percent_format" | "multi_value_cell" | "no_expiry_literal" | "mandatory_cell_empty" | "currency_label_mismatch" | "unknown_field_code" | "unparsable_date" | "unparsable_value" | "document_status_missing" | "missing_sheet" | "source_unreachable" | "source_error_status" | "source_unparsable" | "adapter_not_configured" | "adapter_disabled" | "adapter_no_field_map" | "registry_not_configured" | "mock_record_not_found" | "workbook_not_found" | "workbook_unreadable";
+            /** @enum {string} */
+            severity: "error" | "warning" | "info";
+            field_code?: string | null;
+            sheet?: string | null;
+            cell?: string | null;
+            raw_value?: string | null;
+            message_az: string;
+            message_en: string;
         };
         SyncLogPage: components["schemas"]["PageMeta"] & {
             items: components["schemas"]["SyncLog"][];
         };
         ImportWarning: {
             /** @enum {string} */
-            code: "stale_certificate" | "mixed_percent_format" | "multi_value_cell" | "no_expiry_literal" | "mandatory_cell_empty" | "currency_label_mismatch" | "unknown_field_code" | "unparsable_date";
+            severity: "error" | "warning" | "info";
+            /** @enum {string} */
+            code: "stale_certificate" | "mixed_percent_format" | "multi_value_cell" | "no_expiry_literal" | "mandatory_cell_empty" | "currency_label_mismatch" | "unknown_field_code" | "unparsable_date" | "unparsable_value" | "document_status_missing" | "missing_sheet";
             field_code?: string | null;
             sheet?: string | null;
             cell?: string | null;
@@ -2582,7 +2596,7 @@ export interface components {
             id: string;
             name: string;
             scopes: components["schemas"]["Scope"][];
-            /** @description First characters of the key */
+            /** @description First characters of the key, so it can be identified. */
             prefix?: string;
             /** Format: uuid */
             created_by?: string | null;
@@ -2675,7 +2689,7 @@ export interface components {
             qualification?: {
                 validity_months?: number;
                 pass_mark?: number;
-                /** @description A-05 */
+                /** @description A-05 tax clearance, valid three months from issue. */
                 tax_clearance_validity_months?: number;
             };
             freshness?: {
@@ -4922,6 +4936,7 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     listApiKeys: {

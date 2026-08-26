@@ -24,6 +24,11 @@ from ..services import vendors as vendors_service
 from .data import ProjectRow, parse_date
 from .errors import SeedError
 
+#: Classes a Rev4/sup-1 qualification invites; the rest is rejected (brief §1.6, §1.10).
+#: Shared by ``real.py`` (the 13 subcontractors) and ``demo.py`` (the 4 demo suppliers) —
+#: one earned-outcome rule, not two copies that could quietly drift apart.
+PREQUALIFYING_CLASSES = frozenset({"A", "B", "C"})
+
 
 def external_ref(seed_id: str) -> str:
     """The stable natural key a seed-loaded row carries in ``external_ref``.
@@ -192,22 +197,39 @@ def ensure_category_assignments(
     vendor: Vendor,
     codes: Sequence[str],
     category_by_code: Mapping[str, Category],
+    *,
+    confirmed: bool = False,
 ) -> int:
-    """Add the vendor's category codes as unconfirmed, ``is_demo`` assignments (brief §1.10).
+    """Add the vendor's category codes as ``is_demo`` assignments (brief §1.10).
+
+    ``confirmed`` defaults to ``False`` — the real/import path's protection stays exactly
+    as it was (spec §11.1: only a *confirmed* assignment is a matching candidate, and
+    confirming one is an officer's judgement about evidence, never the seed's to assert on
+    a vendor's own say-so). The demo layer passes ``confirmed=True`` explicitly instead of
+    this default changing under it: fabricated data has no officer to wait for, and the
+    whole point of the demo layer is to show matching working (ADR-018).
 
     Written directly rather than through ``services.categories.set_for_vendor``: that
-    function replaces the whole selection and has no ``is_demo`` parameter, and the seed
-    only ever adds — it must never remove a category an officer has since confirmed.
+    function replaces the whole selection and has neither an ``is_demo`` nor a
+    ``confirmed`` parameter, and the seed only ever adds — it must never remove, or
+    un-confirm, a category an officer has since reviewed. For the same reason, an existing
+    row only has its ``confirmed`` flag corrected here when it is itself ``is_demo`` — a
+    real assignment's confirmation is never the seed's to move either way.
     """
-    existing = {
-        row.category.code
+    existing_rows = {
+        row.category.code: row
         for row in uow.session.scalars(
             select(VendorCategory).where(VendorCategory.vendor_id == vendor.id)
         )
     }
     created = 0
+    touched: list[str] = []
     for code in codes:
-        if code in existing:
+        existing = existing_rows.get(code)
+        if existing is not None:
+            if existing.is_demo and existing.confirmed != confirmed:
+                existing.confirmed = confirmed
+                touched.append(code)
             continue
         category = category_by_code.get(code)
         if category is None:
@@ -216,18 +238,22 @@ def ensure_category_assignments(
             )
         uow.session.add(
             VendorCategory(
-                vendor_id=vendor.id, category_id=category.id, confirmed=False, is_demo=True
+                vendor_id=vendor.id,
+                category_id=category.id,
+                confirmed=confirmed,
+                is_demo=True,
             )
         )
         created += 1
-    if created:
+        touched.append(code)
+    if touched:
         uow.flush()
         audit.record(
             uow,
             entity_type="vendor",
             entity_id=vendor.id,
             action="seed_demo_categories",
-            after={"codes": sorted(codes)},
+            after={"codes": sorted(touched), "confirmed": confirmed},
         )
     return created
 

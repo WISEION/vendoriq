@@ -1,0 +1,277 @@
+/*
+ * Styles for screens 28–30. Scoped with an `iq-` prefix and shipped beside the feature
+ * rather than added to `theme/global.css`, which six other phase-2 tasks also write into.
+ * Every colour is a token from `theme/tokens.css`, so both themes follow automatically.
+ */
+
+.iq-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--gap);
+}
+
+.iq-tabs button {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.iq-tabs button:hover {
+  color: var(--text);
+}
+
+.iq-tabs button[aria-selected='true'] {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.iq-table-wrap {
+  overflow-x: auto;
+}
+
+.iq-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.iq-table th,
+.iq-table td {
+  text-align: start;
+  padding: var(--row-pad);
+  border-bottom: 1px solid var(--line-2);
+  vertical-align: top;
+}
+
+.iq-table th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.iq-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.iq-num {
+  font-family: var(--fm);
+  text-align: end;
+  white-space: nowrap;
+}
+
+.iq-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.iq-pill[data-tone='good'] {
+  background: var(--good-soft);
+  color: var(--good);
+}
+
+.iq-pill[data-tone='warn'] {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.iq-pill[data-tone='crit'] {
+  background: var(--crit-soft);
+  color: var(--crit);
+}
+
+.iq-pill[data-tone='mute'] {
+  background: var(--line-2);
+  color: var(--muted);
+}
+
+.iq-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: var(--gap);
+}
+
+.iq-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.iq-section-title {
+  font-size: 14px;
+  margin: 0 0 4px;
+}
+
+.iq-note {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0 0 var(--gap);
+  max-width: 80ch;
+}
+
+.iq-warning {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--r-ctl);
+  border: 1px solid var(--line);
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.iq-warning[data-severity='error'] {
+  background: var(--crit-soft);
+  border-color: var(--crit);
+}
+
+.iq-warning[data-severity='warning'] {
+  background: var(--warn-soft);
+  border-color: var(--warn);
+}
+
+.iq-warning[data-severity='info'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.iq-warning code {
+  font-family: var(--fm);
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+.iq-secret {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px dashed var(--accent);
+  border-radius: var(--r-ctl);
+  background: var(--accent-soft);
+  margin-bottom: var(--gap);
+  word-break: break-all;
+}
+
+.iq-secret code {
+  font-family: var(--fm);
+  font-size: 13px;
+}
+
+.iq-scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  max-width: 60ch;
+}
+
+.iq-scopes label,
+.iq-events label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-family: var(--fm);
+  color: var(--text);
+}
+
+.iq-events {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  max-width: 70ch;
+}
+
+.iq-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.iq-steps {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: var(--gap);
+}
+
+.iq-steps span[data-active='true'] {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.iq-empty {
+  color: var(--muted);
+  font-size: 13px;
+  padding: var(--row-pad) 0;
+}
+
+.iq-map-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.iq-map-row input {
+  flex: 1;
+  min-width: 0;
+  height: var(--ctl-h);
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--fm);
+  font-size: 12px;
+}
+
+.iq-inline-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.iq-inline-field > span {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.iq-inline-field input,
+.iq-inline-field select {
+  height: var(--ctl-h);
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.iq-changed {
+  color: var(--warn);
+  font-weight: 600;
+}

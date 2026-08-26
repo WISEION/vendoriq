@@ -55,13 +55,21 @@ export const putSecondEvaluation = (
   });
 
 /** Commission summary for signature (Excel) */
-export const exportCommissionSummaryXlsx = (params: PathParams<'exportCommissionSummaryXlsx'>) =>
+export const exportCommissionSummaryXlsx = (
+  params: PathParams<'exportCommissionSummaryXlsx'>,
+  query?: Query<'exportCommissionSummaryXlsx'>,
+) =>
   callBinary<'exportCommissionSummaryXlsx'>('get', '/cycles/{cycle_id}/export-summary.xlsx', {
     params,
+    query,
   });
 
 /** Commission summary for signature (PDF) */
-export const exportCommissionSummaryPdf = (params: PathParams<'exportCommissionSummaryPdf'>) =>
+export const exportCommissionSummaryPdf = (
+  params: PathParams<'exportCommissionSummaryPdf'>,
+  query?: Query<'exportCommissionSummaryPdf'>,
+) =>
   callBinary<'exportCommissionSummaryPdf'>('get', '/cycles/{cycle_id}/export-summary.pdf', {
     params,
+    query,
   });

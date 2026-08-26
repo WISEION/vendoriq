@@ -67,7 +67,6 @@ class SupplierRow(TypedDict, total=False):
     phone: str | None
     raw: dict[str, float | int]
     cats: list[str]
-    status: str
     source: str
     updated: str | None
     type: str

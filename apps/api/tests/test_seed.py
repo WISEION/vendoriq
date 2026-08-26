@@ -35,6 +35,7 @@ from vendoriq_api.models.enums import ApplicationStatus, DecisionKind, VendorSta
 from vendoriq_api.seed import demo as demo_seed
 from vendoriq_api.seed import purge as purge_seed
 from vendoriq_api.seed import real as real_seed
+from vendoriq_api.seed.common import PREQUALIFYING_CLASSES
 from vendoriq_api.seed.data import load_seed_data
 from vendoriq_api.seed.errors import SeedError
 from vendoriq_api.services.accounts import STAFF_ACCOUNTS, VENDOR_ACCOUNTS
@@ -98,7 +99,7 @@ def test_the_thirteen_recomputed_totals_match_the_rev4_sheet(
         row = next(r for r in by_voen_or_name.values() if r["name"].strip() == vendor.legal_name)
         computed = application.computed or {}
         assert computed["total"] == row["sheetTotal"], vendor.legal_name
-        prequalified = computed["cls"] in real_seed.PREQUALIFYING_CLASSES
+        prequalified = computed["cls"] in PREQUALIFYING_CLASSES
         expected_status = (
             ApplicationStatus.PREQUALIFIED if prequalified else ApplicationStatus.REJECTED
         )
@@ -293,7 +294,10 @@ def test_load_demo_is_idempotent(uow: UnitOfWork, settings: Settings) -> None:
         "document": _count(session, Document),
         "work_package": _count(session, WorkPackage),
         "project": _count(session, Project),
+        "application": _count(session, Application),
+        "cycle": _count(session, QualificationCycle),
     }
+    confirmed_before = {vc.id: vc.confirmed for vc in session.scalars(select(VendorCategory))}
 
     second = demo_seed.load_demo(uow)
 
@@ -302,14 +306,22 @@ def test_load_demo_is_idempotent(uow: UnitOfWork, settings: Settings) -> None:
     assert second.work_packages_created == 0
     assert second.documents_created == 0
     assert second.category_assignments_created == 0
+    assert second.supplier_applications_created == 0
+    assert second.supplier_applications_matched == 4
+    assert second.supplier_cycle_created is False
     after = {
         "vendor": _count(session, Vendor),
         "vendor_category": _count(session, VendorCategory),
         "document": _count(session, Document),
         "work_package": _count(session, WorkPackage),
         "project": _count(session, Project),
+        "application": _count(session, Application),
+        "cycle": _count(session, QualificationCycle),
     }
     assert after == before
+    confirmed_after = {vc.id: vc.confirmed for vc in session.scalars(select(VendorCategory))}
+    assert confirmed_after == confirmed_before
+    assert all(confirmed_after.values())
 
 
 # ── purge-demo ───────────────────────────────────────────────────────────────
@@ -520,3 +532,100 @@ def test_vendors_with_no_submission_still_score_one_via_c3_not_a2(
         assert computed["cls"] == "KO"
         assert computed["per"]["A.2"] == 0.0
         assert computed["per"]["C.3"] == 1.0
+
+
+# ── the demo layer actually demonstrates something (2C's defect, ADR-018) ──────
+def test_demo_category_assignments_are_confirmed(uow: UnitOfWork, settings: Settings) -> None:
+    """A vendor is a matching candidate only once its category is *confirmed* (spec §11.1).
+
+    The real/import path's default stays `False` (`common.ensure_category_assignments`,
+    unchanged) — this asserts the demo layer's own deliberate override, not a relaxation of
+    that default.
+    """
+    real_seed.load_real(uow, settings=settings)
+    demo_seed.load_demo(uow)
+    session = uow.session
+    rows = list(session.scalars(select(VendorCategory)))
+    assert len(rows) == 29
+    assert all(row.is_demo for row in rows)
+    assert all(row.confirmed for row in rows)
+
+
+def test_demo_suppliers_earn_their_status_against_sup1(uow: UnitOfWork, settings: Settings) -> None:
+    """seed/README.md's table: S01/S02 prequalified, S03/S04 rejected — computed, not read
+    off a (now-deleted) ``data.json`` claim."""
+    real_seed.load_real(uow, settings=settings)
+    summary = demo_seed.load_demo(uow)
+    session = uow.session
+
+    assert summary.supplier_applications_created == 4
+    assert summary.suppliers_prequalified == 2
+    assert summary.suppliers_rejected == 2
+
+    expected = {
+        "Caspian Steel Supply (demo)": ("A", "prequalified", 90.3),
+        "Baku Beton (demo)": ("A", "prequalified", 94.7),
+        "AzGlass Systems (demo)": ("D", "rejected", 64.8),
+        "Nur Elektrik Tədarük (demo)": ("KO", "rejected", 55.3),
+    }
+    for name, (cls, status, total) in expected.items():
+        supplier = session.scalar(select(Vendor).where(Vendor.legal_name == name))
+        assert supplier is not None, name
+        assert supplier.status.value == status, name
+        application = session.scalar(
+            select(Application).where(Application.vendor_id == supplier.id)
+        )
+        assert application is not None, name
+        computed = application.computed or {}
+        assert computed.get("cls") == cls, name
+        assert computed.get("total") == total, name
+        assert application.decided_at is not None, name
+        assert application.is_demo is True, name
+
+    # One shared cycle, scored against sup-1 — not the subcontractors' TQS2026006/sub-4 one.
+    cycle = session.scalar(
+        select(QualificationCycle).where(
+            QualificationCycle.name == "Demo supplier qualification (sup-1)"
+        )
+    )
+    assert cycle is not None
+    assert cycle.scoring_model_version == "sup-1"
+    assert cycle.is_demo is True
+
+
+def test_tqs_238_matches_at_96_percent_with_flooring_as_the_only_gap(
+    uow: UnitOfWork, settings: Settings
+) -> None:
+    """The end-to-end claim task 2C measures through its endpoints, asserted here against
+    the database `make seed && make seed-demo` actually builds (brief §11.2's 96%).
+
+    Not a `packages/scoring` engine test (that is `test_matching.py`'s job, unchanged) —
+    this is the seed producing data the *real* candidate-assembly path
+    (`services.matching.build_candidates`) can find, which is exactly what was missing.
+    """
+    from vendoriq_api.services import matching  # local: services/ is not this task's to own
+
+    real_seed.load_real(uow, settings=settings)
+    demo_seed.load_demo(uow)
+    session = uow.session
+
+    project = session.scalar(select(Project).where(Project.code == "TQS-238"))
+    assert project is not None
+    category_by_package: dict[str, str] = {}
+    for wp in session.scalars(select(WorkPackage).where(WorkPackage.project_id == project.id)):
+        category = session.get(Category, wp.category_id)
+        assert category is not None
+        category_by_package[str(wp.id)] = category.code
+
+    params = matching.resolve_params(session, None)
+    result = matching.run(session, project, params)
+
+    assert result.coverage_pct == 96
+    assert result.state == "nogo"  # any NO-GO package makes the project NO-GO (brief §1.7)
+
+    by_category = {category_by_package[pkg.package_id]: pkg for pkg in result.packages}
+    assert by_category["flooring"].state == "nogo"
+    assert by_category["flooring"].gap == "no_prequalified_vendor"
+    for code, pkg in by_category.items():
+        if code != "flooring":
+            assert pkg.state != "nogo", (code, pkg.gap)

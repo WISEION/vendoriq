@@ -6,9 +6,17 @@ they are missing, rather than silently building a second, disconnected copy.
 
 Adds:
 
-1. category *assignments* of the 13 real vendors (the taxonomy itself is real; who sits
-   where is demo — brief §1.10),
-2. the 4 demo suppliers, their contacts, raw indicators and category assignments,
+1. category *assignments* of the 13 real vendors, **confirmed** — the taxonomy itself is
+   real; who sits where is demo (brief §1.10), and matching only ever looks at a confirmed
+   assignment (spec §11.1). Confirmation defaults to ``False`` everywhere else in this
+   codebase on purpose (spec §11.1: it is an officer's judgement about evidence) — this is
+   the one place that overrides the default, because fabricated data has no officer to wait
+   for and the whole point of the demo layer is to show the system working (ADR-018).
+2. the 4 demo suppliers, their contacts, raw indicators and confirmed category assignments,
+   driven through a real qualification against ``sup-1`` — a real ``Application``, a real
+   score from ``packages/scoring``, a real state-machine transition to ``prequalified`` or
+   ``rejected`` — exactly the way ``real.py`` drives the 13 subcontractors against ``sub-4``.
+   Their status is earned from the computed class, never copied from a claim (ADR-018).
 3. the work-package breakdown of both projects — including ``TQS-238``, whose project row
    is real but whose packages are demo — and the second project, ``TQS-301``, in full,
 4. document expiry rows for the vendors ``seed/data.json`` gives one to.
@@ -17,16 +25,38 @@ Adds:
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 
 from sqlalchemy import select
+from vendoriq_scoring import ScoreResult, load_model, score
 
 from ..db import UnitOfWork
-from ..models import Category, Document, Project, Vendor, WorkPackage
-from ..models.enums import DocumentStatus, ObservationSource, ScoreClass, VendorType
+from ..models import (
+    Application,
+    Category,
+    Document,
+    Project,
+    QualificationCycle,
+    Vendor,
+    WorkPackage,
+)
+from ..models.enums import (
+    ApplicationStatus,
+    CycleKind,
+    CycleStatus,
+    DecisionKind,
+    DocumentStatus,
+    ObservationSource,
+    ScoreClass,
+    UserRole,
+    VendorType,
+)
+from ..services import applications as applications_service
 from ..services import audit
 from ..services import categories as categories_service
 from .common import (
+    PREQUALIFYING_CLASSES,
     ensure_category_assignments,
     ensure_observations,
     find_vendor_by_seed_id,
@@ -35,13 +65,25 @@ from .common import (
     get_or_create_vendor,
     observed_at,
 )
-from .data import PackageRow, ProjectRow, load_seed_data, parse_date, parse_int, parse_voen
+from .data import (
+    PackageRow,
+    ProjectRow,
+    SupplierRow,
+    load_seed_data,
+    parse_date,
+    parse_int,
+    parse_voen,
+)
 from .errors import SeedError
 
 #: The one project loaded as real (brief §1.10); its packages are still demo.
 REAL_PROJECT_CODE = "TQS-238"
 #: Supplier rows name their own provenance; only these two values appear in the fixture.
 _SUPPLIER_SOURCES = {"excel": ObservationSource.EXCEL, "api": ObservationSource.API}
+#: A synthetic cycle for the 4 demo suppliers — there is no TQS number for them (they are
+#: not part of the real TQS2026006 subcontractor round), just a scoring model to qualify
+#: them against, the same as ``real.py``'s cycle does for the 13 subcontractors.
+SUPPLIER_CYCLE_NAME = "Demo supplier qualification (sup-1)"
 
 
 @dataclass(slots=True)
@@ -52,6 +94,13 @@ class DemoSummary:
     suppliers_created: int = 0
     supplier_contacts_created: int = 0
     supplier_observations_created: int = 0
+    supplier_cycle_created: bool = False
+    supplier_applications_created: int = 0
+    supplier_applications_matched: int = 0
+    #: How the 4 computed classes actually landed — the honest count, not the fixture's old
+    #: (now-deleted) claim. Printed so a diverging outcome is visible, not silent.
+    suppliers_prequalified: int = 0
+    suppliers_rejected: int = 0
     projects_created: int = 0
     work_packages_created: int = 0
     documents_created: int = 0
@@ -71,14 +120,17 @@ def load_demo(uow: UnitOfWork) -> DemoSummary:
             "`make seed-demo` (load --demo)."
         )
 
-    # 1. category assignments on the 13 real vendors.
+    # 1. category assignments on the 13 real vendors — confirmed (see the module docstring
+    # for why the demo layer, alone, overrides `ensure_category_assignments`'s default).
     for vendor_row in data.vendors:
         vendor = find_vendor_by_seed_id(uow, vendor_row["id"])
         summary.category_assignments_created += ensure_category_assignments(
-            uow, vendor, vendor_row.get("cats", []), category_by_code
+            uow, vendor, vendor_row.get("cats", []), category_by_code, confirmed=True
         )
 
-    # 2. the 4 demo suppliers.
+    # 2. the 4 demo suppliers: profile, then a real qualification against sup-1.
+    supplier_model = load_model("sup-1")
+    supplier_cycle: QualificationCycle | None = None
     for supplier_row in data.suppliers:
         supplier, created = get_or_create_vendor(
             uow,
@@ -115,8 +167,21 @@ def load_demo(uow: UnitOfWork) -> DemoSummary:
             at=observed_at(supplier_row.get("updated")),
         )
         summary.category_assignments_created += ensure_category_assignments(
-            uow, supplier, supplier_row.get("cats", []), category_by_code
+            uow, supplier, supplier_row.get("cats", []), category_by_code, confirmed=True
         )
+
+        if supplier_cycle is None:
+            supplier_cycle, summary.supplier_cycle_created = _ensure_supplier_cycle(uow)
+        result = score(supplier_model, supplier_row.get("raw", {}))
+        application, application_created = _ensure_supplier_application(
+            uow, supplier=supplier, cycle=supplier_cycle, row=supplier_row, result=result
+        )
+        summary.supplier_applications_created += int(application_created)
+        summary.supplier_applications_matched += int(not application_created)
+        if (application.computed or {}).get("cls") in PREQUALIFYING_CLASSES:
+            summary.suppliers_prequalified += 1
+        else:
+            summary.suppliers_rejected += 1
 
     # 3. work packages of both projects.
     for project_row in data.projects:
@@ -136,6 +201,99 @@ def load_demo(uow: UnitOfWork) -> DemoSummary:
 
     uow.flush()
     return summary
+
+
+def _ensure_supplier_cycle(uow: UnitOfWork) -> tuple[QualificationCycle, bool]:
+    """The demo suppliers' own cycle — ``sup-1``, not ``sub-4``, and not TQS2026006.
+
+    Mirrors ``real.py``'s ``_ensure_cycle`` (match by name, create closed/decided), but the
+    13 subcontractors and the 4 suppliers cannot share a cycle: ``QualificationCycle`` names
+    one ``scoring_model_version`` for every application inside it (spec §5), and a supplier
+    is scored against ``sup-1``.
+    """
+    existing = uow.session.scalar(
+        select(QualificationCycle).where(QualificationCycle.name == SUPPLIER_CYCLE_NAME)
+    )
+    if existing is not None:
+        return existing, False
+    cycle = QualificationCycle(
+        name=SUPPLIER_CYCLE_NAME,
+        kind=CycleKind.PERIODIC,
+        scoring_model_version="sup-1",
+        project_id=None,
+        status=CycleStatus.CLOSED,
+        is_demo=True,
+    )
+    uow.session.add(cycle)
+    uow.flush()
+    audit.record(
+        uow,
+        entity_type="qualification_cycle",
+        entity_id=cycle.id,
+        action="seed_demo",
+        after={"name": cycle.name, "status": cycle.status.value},
+    )
+    return cycle, True
+
+
+def _ensure_supplier_application(
+    uow: UnitOfWork,
+    *,
+    supplier: Vendor,
+    cycle: QualificationCycle,
+    row: SupplierRow,
+    result: ScoreResult,
+) -> tuple[Application, bool]:
+    """Qualify one demo supplier against ``sup-1`` — earned, not asserted (ADR-018).
+
+    Structurally identical to ``real.py``'s ``_ensure_application``: invite, walk the same
+    officer-intake / submit / review / decide edges the state machine defines for anyone
+    (spec §9), then record the engine's own verdict. ``seed/data.json`` no longer carries a
+    ``status`` claim for suppliers — this *is* the status now, computed, not copied.
+    """
+    existing = uow.session.scalar(
+        select(Application).where(
+            Application.vendor_id == supplier.id, Application.cycle_id == cycle.id
+        )
+    )
+    if existing is not None:
+        return existing, False
+
+    prequalified = result.cls in PREQUALIFYING_CLASSES
+    target = ApplicationStatus.PREQUALIFIED if prequalified else ApplicationStatus.REJECTED
+
+    application = applications_service.invite(uow, supplier, cycle_id=cycle.id)
+    application.raw_snapshot = dict(row.get("raw", {}))
+    for step in (
+        ApplicationStatus.IN_PROGRESS,
+        ApplicationStatus.SUBMITTED,
+        ApplicationStatus.UNDER_REVIEW,
+    ):
+        applications_service.transition(uow, application, step, role=UserRole.OFFICER)
+    applications_service.transition(uow, application, target, role=UserRole.MANAGER)
+
+    application.computed = asdict(result)
+    application.decision = DecisionKind.APPROVE if prequalified else DecisionKind.REJECT
+    updated = parse_date(row.get("updated"))
+    application.decided_at = (
+        datetime(updated.year, updated.month, updated.day, tzinfo=UTC)
+        if updated is not None
+        else datetime.now(UTC)
+    )
+    application.justification = (
+        f"Demo qualification against sup-1: computed class {result.cls} "
+        f"(total {result.total}, KO {'passed' if result.ko else 'failed'})."
+    )
+    uow.flush()
+    audit.record(
+        uow,
+        entity_type="application",
+        entity_id=application.id,
+        action="seed_demo_decide",
+        before=None,
+        after={"computed": application.computed, "decision": application.decision.value},
+    )
+    return application, True
 
 
 def _ensure_project(uow: UnitOfWork, row: ProjectRow) -> tuple[Project, bool]:

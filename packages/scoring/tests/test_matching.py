@@ -21,6 +21,7 @@ from vendoriq_scoring import (
     load_model,
     match_package,
     match_project,
+    score,
 )
 from vendoriq_scoring.matching import _certificate_criterion
 
@@ -451,18 +452,34 @@ def _seed() -> dict[str, Any]:
 
 
 def _seed_candidates() -> list[CandidateInput]:
+    """The 13 vendors and 4 suppliers, with qualification **derived from their own scores**.
+
+    This is an engine-level fixture, and the distinction matters. It used to read
+    ``row["status"] == "prequalified"`` — a string in `seed/data.json` that nothing in the
+    running system consumed. So this test reproduced the spec's 96 % from a hand-written
+    label while the live system, which qualifies a vendor by scoring it, returned 76 %
+    (ADR-018). A number agreed on by a test and contradicted by the product is worse than no
+    number: it is a green light pointing the wrong way.
+
+    Scoring here instead means the fixture asks the same question the seed asks — does this
+    vendor clear the pass mark without failing a knock-out — so the two can no longer drift
+    apart silently. The end-to-end assertion against a real database lives in
+    `apps/api/tests/test_seed.py`; this one stays a unit test of the matching arithmetic.
+    """
     seed = _seed()
     rows: list[CandidateInput] = []
     for row in [*seed["vendors"], *seed["suppliers"]]:
+        version = "sub-4" if row["type"] == "sub" else "sup-1"
+        result = score(load_model(version), row["raw"])
         rows.append(
             {
                 "id": row["id"],
                 "legal_name": row["name"],
                 "vendor_type": row["type"],
                 "category_codes": row["cats"],
-                "is_prequalified": row["status"] == "prequalified",
+                "is_prequalified": result.ko and result.total >= load_model(version).pass_mark,
                 "raw": row["raw"],
-                "model_version": "sub-4" if row["type"] == "sub" else "sup-1",
+                "model_version": version,
             }
         )
     return rows
