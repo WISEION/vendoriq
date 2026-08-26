@@ -2015,6 +2015,12 @@ export interface components {
             declaration?: components["schemas"]["Declaration"];
             justification?: string | null;
             checks?: components["schemas"]["SubmissionChecks"];
+            /** @description Share of the answerable form catalogue the vendor has filled. Carried here so the form can read it without writing: `patchAnswers` returns the same figure but is refused once the application is submitted, which left the meter reading 0 % for a complete application. */
+            completion_pct?: number;
+            /** @description Server-computed read-only cells (B.4 average turnover, B.8, counts). */
+            computed_fields?: {
+                [key: string]: number | null;
+            };
             /** @description Vendors see the breakdown only after the commission decision. */
             score_released?: boolean;
         };

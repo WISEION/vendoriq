@@ -2634,6 +2634,19 @@ components:
             declaration: { $ref: "#/components/schemas/Declaration" }
             justification: { type: [string, "null"] }
             checks: { $ref: "#/components/schemas/SubmissionChecks" }
+            completion_pct:
+              type: number
+              minimum: 0
+              maximum: 100
+              description: >-
+                Share of the answerable form catalogue the vendor has filled. Carried here so
+                the form can read it without writing: `patchAnswers` returns the same figure
+                but is refused once the application is submitted, which left the meter
+                reading 0 % for a complete application.
+            computed_fields:
+              type: object
+              additionalProperties: { type: [number, "null"] }
+              description: Server-computed read-only cells (B.4 average turnover, B.8, counts).
             score_released:
               type: boolean
               description: Vendors see the breakdown only after the commission decision.

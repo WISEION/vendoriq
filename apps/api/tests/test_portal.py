@@ -512,3 +512,48 @@ def test_staff_always_sees_the_score(
     detail = client.get(f"/api/applications/{application.id}").json()
     assert detail["score_released"] is False  # not decided yet
     assert detail["computed"]["cls"] == "KO"
+
+
+def test_the_detail_carries_completion_even_once_the_application_is_locked(
+    client: TestClient,
+    make_vendor: Any,
+    make_user: Any,
+    login: Any,
+    cycle: QualificationCycle,
+    session: Session,
+) -> None:
+    """3A, finding 4: the form's own state must be readable without writing.
+
+    `patchAnswers` returns `completion_pct` and `computed_fields`, and the form used to fetch
+    them with an empty patch. The server refuses that patch once the application is submitted
+    — correctly, since answers are frozen at submission — so screens 6-12 showed
+    "Completion 0 / 100" and blank computed cells for a complete, prequalified application.
+    The figures now ride on `getApplication`, which is a read.
+
+    The check that matters is the *second* one: before the freeze the old route worked too.
+    """
+    vendor = make_vendor()
+    application = _invite(session, vendor, cycle)
+    login(make_user(UserRole.VENDOR, vendor=vendor))
+
+    client.patch(
+        f"/api/applications/{application.id}/answers",
+        json={"answers": {"A.1": "Test MMC", "B.1": 3_000_000, "B.2": 2_800_000, "B.3": 2_500_000}},
+    )
+    open_detail = client.get(f"/api/applications/{application.id}").json()
+    assert open_detail["completion_pct"] > 0
+    assert open_detail["computed_fields"]["B.4"] == pytest.approx(2_766_666.67, rel=1e-6)
+
+    applications_service.transition(
+        UnitOfWork(session), application, ApplicationStatus.SUBMITTED, role=UserRole.VENDOR
+    )
+    session.commit()
+
+    # The write route is refused, which is right ...
+    refused = client.patch(f"/api/applications/{application.id}/answers", json={"answers": {}})
+    assert refused.status_code == 409
+
+    # ... and the read route still answers, which is the fix.
+    locked_detail = client.get(f"/api/applications/{application.id}").json()
+    assert locked_detail["completion_pct"] == open_detail["completion_pct"]
+    assert locked_detail["computed_fields"] == open_detail["computed_fields"]

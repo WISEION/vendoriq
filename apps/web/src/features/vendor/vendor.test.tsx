@@ -95,9 +95,15 @@ const APPLICATION_DETAIL = {
   declaration: null,
   justification: null,
   checks: CHECKS,
+  // The completion meter and the computed cells arrive on the detail now, not through an
+  // empty `PATCH /answers` — which the server refuses once the application is submitted, so
+  // the meter used to read 0 % for a complete application (3A, finding 4).
+  completion_pct: 14.3,
+  computed_fields: { 'B.4': 2_766_666.67, 'B.8': 1.8 },
   score_released: false,
 };
 
+/** Still the shape `patchAnswers` returns; the form no longer *reads* it. */
 const ANSWER_STATE = {
   completion_pct: 14.3,
   checks: CHECKS,

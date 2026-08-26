@@ -94,5 +94,11 @@ class ApplicationDetail(Application):
     declaration: Declaration | None = None
     justification: str | None = None
     checks: SubmissionChecks | None = None
+    #: What `AnswerState` carries, so the form can read its own state without writing.
+    #: `patchAnswers` returns the same two, and the form used to fetch them with an empty
+    #: patch — which the server correctly refuses once the application is submitted, so a
+    #: complete, prequalified application showed a completion meter of 0 % (3A, finding 4).
+    completion_pct: float = 0.0
+    computed_fields: dict[str, float | None] = Field(default_factory=dict)
     #: Vendors see the score breakdown only after the commission decision (spec §7).
     score_released: bool = False

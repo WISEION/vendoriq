@@ -62,20 +62,30 @@ export function useApplicationDetail(applicationId: string | undefined) {
 
 /**
  * The completion meter, the pre-submission checklist and the server-computed cells (B.4
- * average turnover, B.8 current ratio, the project/reference counts) — everything
- * `AnswerState` carries. `patchAnswers` returns this for *any* patch, including an empty
- * one, so a form tab reads it with an empty-answers save rather than needing a second
- * endpoint; a short `staleTime` keeps switching between the seven section tabs from firing a
- * save on every click. Saving a real answer (`useSaveAnswers`) invalidates this alongside
- * the application detail so both stay in step with what was just written.
+ * average turnover, B.8 current ratio, the project/reference counts).
+ *
+ * These come from `getApplication`, which carries them all. They used to be fetched with an
+ * *empty* `patchAnswers` — a read performed through a write, which worked only while the
+ * application was still editable. The server correctly refuses that patch once an
+ * application is submitted or decided, so the form showed "Completion 0 / 100" for a
+ * complete, prequalified application and every computed cell came back blank (3A, finding 4).
+ * A screen that cannot read its own state without changing it has the wrong endpoint.
+ *
+ * No separate request: `useApplicationDetail` is already loaded by every caller, so this
+ * reads the same cache entry and stays in step with saves for free.
  */
 export function useAnswerState(applicationId: string | undefined) {
-  return useQuery({
-    queryKey: answerStateKey(applicationId ?? 'none'),
-    queryFn: () => patchAnswers({ application_id: applicationId ?? '' }, { answers: {} }),
-    enabled: Boolean(applicationId),
-    staleTime: 15_000,
-  });
+  const detail = useApplicationDetail(applicationId);
+  return {
+    ...detail,
+    data: detail.data
+      ? {
+          completion_pct: detail.data.completion_pct ?? 0,
+          computed_fields: detail.data.computed_fields ?? {},
+          checks: detail.data.checks,
+        }
+      : undefined,
+  };
 }
 
 /** Autosave one patch of answers, then refresh the detail so computed cells and the

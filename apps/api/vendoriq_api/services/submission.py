@@ -26,6 +26,7 @@ from ..models.enums import ApplicationStatus, UserRole, VendorType
 from ..schemas.applications import ApplicationDetail, Declaration, DeclarationInput, ScoreResult
 from ..schemas.applications import SubmissionChecks as SubmissionChecksSchema
 from ..schemas.vendors import Application as ApplicationSchema
+from . import answers as answers_service
 from . import applications as applications_service
 from . import audit
 from . import documents as documents_service
@@ -139,10 +140,19 @@ def detail_payload(
         )
     declaration = Declaration(**application.declaration) if application.declaration else None
 
+    profile = observations_service.current_profile(session, application.vendor_id)
     return ApplicationDetail(
         **base.model_dump(),
         scoring_model_version=cycle.scoring_model_version if cycle else None,
-        answers=observations_service.current_profile(session, application.vendor_id),
+        answers=profile,
+        completion_pct=answers_service.completion_pct(profile),
+        computed_fields=(
+            answers_service.computed_fields(
+                profile, "sup" if vendor.type is VendorType.SUP else "sub"
+            )
+            if vendor is not None
+            else {}
+        ),
         raw_snapshot=application.raw_snapshot,
         rubric_scores=None if hide_score else application.rubric_scores,
         computed=computed,
