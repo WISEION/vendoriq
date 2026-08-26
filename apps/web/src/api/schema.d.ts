@@ -1737,9 +1737,9 @@ export interface components {
         };
         Me: components["schemas"]["User"] & {
             /** @description Operation ids this identity may call — the frontend hides, the server enforces. */
-            permissions?: string[];
+            permissions: string[];
             /** @enum {string} */
-            auth_mode?: "test" | "live";
+            auth_mode: "test" | "live";
         };
         Vendor: {
             /** Format: uuid */

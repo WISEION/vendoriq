@@ -82,9 +82,35 @@ Conventions: TanStack Router paths, `$param` for a path parameter. The screensho
 | 33 | `admin-settings` | `/admin/settings` | Matching thresholds, validity, notifications, org/language |
 | 34 | `admin-audit` | `/admin/audit` | Immutable log with Excel export |
 
-## Rail
+## Rail and the gating operation
 
 `apps/web/src/app/navigation.ts` carries the rail. Screens 17, 19, 20, 23, 24, 27, 29 and 30 are
 reached from their parent screen and have no rail entry of their own; every other screen does.
-The rail hides what the caller's role may not call — the same operation ids `GET /api/auth/me`
-returns, never a second copy of the permission matrix.
+
+Visibility is **not** a role table in the web app. Each rail item names the contract operation id
+that gates its screen, and `navSectionsFor(permissions)` shows the item when `GET /api/auth/me`
+lists that id (ADR-013). A management screen is gated on the operation that *is* the management,
+not on a read operation a wider audience may call.
+
+| Screen | Gated by | Who that admits today |
+|---|---|---|
+| `manager-overview` | `getIntelOverview` | officer, commission, manager, admin |
+| `vendor-register` | `listVendors` | all staff |
+| `applications-queue` | `listApplications` | all staff |
+| `cycles` | `listCycles` | all staff — rail entry added by task 2C |
+| `projects-list` | `listProjects` | all staff |
+| `market-intelligence` | `getIntelCoverage` | all staff |
+| `scoring-models` | `listScoringModels` | all staff |
+| `data-sources` | `listAdapters` | officer, manager, admin |
+| `admin-categories` | `createCategory` | admin — rail entry added by task 2F |
+| `admin-users` | `listUsers` | admin — rail entry added by task 2F |
+| `admin-settings` | `putSettings` | manager, admin — rail entry added by task 2F |
+| `admin-audit` | `listAuditEvents` | manager, admin — rail entry added by task 2F |
+
+Vendor rail: `vendor-status` → `listApplications`, `vendor-profile` → `getVendor`,
+`vendor-form-*` → `getApplication`, `vendor-documents` → `listDocuments`, `vendor-submit` →
+`submitApplication`.
+
+"Who that admits today" is derived from `apps/api/vendoriq_api/security/permissions.py` and is
+documentation, not a second source of truth — when the matrix changes, the rail follows it
+without an edit here.

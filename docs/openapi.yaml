@@ -2328,6 +2328,10 @@ components:
       allOf:
         - $ref: "#/components/schemas/User"
         - type: object
+          # Both are required: the rail is built from `permissions` (ADR-013), so an omitted
+          # list is indistinguishable from "may call nothing" and would render an empty rail,
+          # and the dev banner keys off `auth_mode`. A client must never have to guess either.
+          required: [permissions, auth_mode]
           properties:
             permissions:
               type: array

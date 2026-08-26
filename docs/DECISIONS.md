@@ -320,3 +320,44 @@ caught by name; anything else propagates instead of being silently reported as a
 **Consequences.** PBKDF2 stays as the documented fallback for a host that cannot build the C
 extension, and `verify_password` still reads both encodings, so moving between them re-hashes
 on the next successful login rather than invalidating every password.
+
+---
+
+## ADR-013 — The rail is built from `Me.permissions`, never from a role table in the web app
+
+**Status:** Accepted (phase 1, wave 2) · **Decided by:** orchestrator
+
+Each rail item names the **operation id** that gates its screen; the rail shows the item when
+`GET /api/auth/me` lists that id in `permissions`. `navSectionsFor(permissions)` replaces
+`navSectionsForRole(role)`, and `docs/SCREENS.md` records the gating operation for all 34.
+
+**Why.** Phase 1F shipped a hand-written role table in `navigation.ts`, sourced honestly from
+the role prose in `docs/TEST_ACCOUNTS.md` — the worker flagged it as a judgment call and asked
+for confirmation, which was the right instinct, because the table was a second copy of the
+permission matrix and it had already drifted from the first. Checked against
+`security/permissions.py` it was wrong in both directions: it hid `/market` and `/projects`
+from officers and commission although `getIntelCoverage` and `listProjects` admit them, and it
+showed `/integrations` to admin but not manager although `listAdapters` admits manager and not
+commission. A rail that lies in the permissive direction is a support ticket ("the button does
+nothing"); one that lies in the restrictive direction hides work a role is paid to do.
+
+There is only one permission matrix and it is on the server. The frontend hides, the server
+enforces — so the frontend must ask the server what to hide.
+
+**A management screen is gated on the operation that *is* the management.** `/admin/categories`
+is gated on `createCategory` (admin only), not on the `listCategories` every vendor may call to
+populate a category picker. Gating an editing screen on its read operation is how a taxonomy
+editor ends up in a vendor's rail.
+
+**Contract change.** `Me.permissions` and `Me.auth_mode` were optional. They are now
+`required`. An omitted `permissions` is indistinguishable from "may call nothing" and renders
+an empty rail, and the dev banner keys off `auth_mode`; a client must never have to guess
+either. Verified against a live manager session: 82 operation ids, all seven manager rail
+gates present.
+
+**Consequences.** An empty or absent `permissions` list yields an **empty rail**, never a
+default — "we do not know what you may do" must not render as "all of it". Phase 2 tasks add
+their own rail entries with the gating operation named: 2C adds `/cycles` (`listCycles`) and
+2F the four `/admin/*` screens. They were left out of the rail here rather than added blind,
+because a rail entry pointing at a route that does not exist yet does not type-check against
+the router's registry.

@@ -1,7 +1,12 @@
 /**
- * The screen inventory: 34 artboards grouped exactly as the approved prototype's rail is
- * (`docs/design/app.js`, `NAV`). Routes exist from phase 0 so every screen has an address
- * before it has content; the feature teams fill the components in.
+ * The rail: the addresses of `docs/SCREENS.md`, grouped as the approved prototype groups them
+ * (`docs/design/app.js`, `NAV`).
+ *
+ * Visibility is not a second copy of the permission matrix. Each item names the **operation id**
+ * that gates its screen, and the rail shows the item when `GET /api/auth/me` lists that id in
+ * `permissions` (ADR-013). The server is the only place a role maps to an operation; a role
+ * table here would be a duplicate that silently drifts — and did: it hid `/market` from officers
+ * although `getIntelCoverage` admits them, and showed `/integrations` to admins but not managers.
  */
 /** `openapi.yaml` `UserRole` enum. */
 export type UserRole = 'vendor' | 'officer' | 'commission' | 'manager' | 'admin';
@@ -13,13 +18,12 @@ export interface NavItem {
   labelKey: string;
   icon: keyof typeof ICONS;
   /**
-   * Staff roles that may open this item, sourced from `docs/TEST_ACCOUNTS.md`'s role table
-   * ("officer — the whole register", "commission — applications and evaluations", "manager /
-   * admin — everything"). Omitted = every staff role (manager and admin always see
-   * everything; access is still enforced server-side per operation — this only hides what a
-   * role has no reason to open).
+   * The contract operation id that gates this screen — the one the screen cannot function
+   * without. A management screen names the operation that *is* the management (a screen for
+   * editing the taxonomy is gated on `createCategory`, not on the `listCategories` every
+   * vendor may call to populate a picker).
    */
-  roles?: UserRole[];
+  gatedBy: string;
 }
 
 export interface NavSection {
@@ -36,8 +40,7 @@ export const ICONS = {
   projects: '<path d="M2 13h12"/><path d="M4 13V7h3v6M9 13V3h3v10"/>',
   market: '<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/>',
   models: '<path d="M2 4h12M2 8h8M2 12h10"/>',
-  integrations:
-    '<path d="M6 3H3v3M10 3h3v3M6 13H3v-3M10 13h3v-3"/><circle cx="8" cy="8" r="2"/>',
+  integrations: '<path d="M6 3H3v3M10 3h3v3M6 13H3v-3M10 13h3v-3"/><circle cx="8" cy="8" r="2"/>',
   admin: '<circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2"/>',
   vhome: '<circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/>',
   vprofile: '<circle cx="8" cy="5.5" r="3"/><path d="M2.5 14c.5-3 3-4.5 5.5-4.5s5 1.5 5.5 4.5"/>',
@@ -50,48 +53,47 @@ export const MANAGER_NAV: NavSection[] = [
   {
     titleKey: 'sec_manage',
     items: [
-      { path: '/', labelKey: 'nav_overview', icon: 'overview' },
-      {
-        path: '/vendors',
-        labelKey: 'nav_vendors',
-        icon: 'vendors',
-        roles: ['officer', 'manager', 'admin'],
-      },
-      {
-        path: '/applications',
-        labelKey: 'nav_apps',
-        icon: 'apps',
-        roles: ['officer', 'commission', 'manager', 'admin'],
-      },
-      { path: '/projects', labelKey: 'nav_projects', icon: 'projects', roles: ['manager', 'admin'] },
+      { path: '/', labelKey: 'nav_overview', icon: 'overview', gatedBy: 'getIntelOverview' },
+      { path: '/vendors', labelKey: 'nav_vendors', icon: 'vendors', gatedBy: 'listVendors' },
+      { path: '/applications', labelKey: 'nav_apps', icon: 'apps', gatedBy: 'listApplications' },
+      { path: '/projects', labelKey: 'nav_projects', icon: 'projects', gatedBy: 'listProjects' },
     ],
   },
   {
     titleKey: 'sec_intel',
-    items: [{ path: '/market', labelKey: 'nav_market', icon: 'market', roles: ['manager', 'admin'] }],
+    items: [
+      { path: '/market', labelKey: 'nav_market', icon: 'market', gatedBy: 'getIntelCoverage' },
+    ],
   },
   {
     titleKey: 'sec_setup',
     items: [
-      { path: '/scoring-models', labelKey: 'nav_models', icon: 'models', roles: ['manager', 'admin'] },
+      {
+        path: '/scoring-models',
+        labelKey: 'nav_models',
+        icon: 'models',
+        gatedBy: 'listScoringModels',
+      },
       {
         path: '/integrations',
         labelKey: 'nav_integrations',
         icon: 'integrations',
-        roles: ['officer', 'admin'],
+        gatedBy: 'listAdapters',
       },
     ],
   },
 ];
 
-/** Sections and items a role may open — manager/admin see everything; others per `roles` above. */
-export function navSectionsForRole(role: UserRole): NavSection[] {
-  const seesEverything = role === 'manager' || role === 'admin';
+/**
+ * The rail for one identity: every item whose gating operation the server says this caller may
+ * call. `permissions` comes straight from `GET /api/auth/me`; an empty list yields an empty rail
+ * rather than a default, because "we do not know what you may do" must never render as "all of it".
+ */
+export function navSectionsFor(permissions: readonly string[]): NavSection[] {
+  const granted = new Set(permissions);
   return MANAGER_NAV.map((section) => ({
     ...section,
-    items: section.items.filter(
-      (item) => seesEverything || !item.roles || item.roles.includes(role),
-    ),
+    items: section.items.filter((item) => granted.has(item.gatedBy)),
   })).filter((section) => section.items.length > 0);
 }
 
@@ -99,11 +101,26 @@ export const VENDOR_NAV: NavSection[] = [
   {
     titleKey: 'sec_vendor',
     items: [
-      { path: '/portal', labelKey: 'nav_vhome', icon: 'vhome' },
-      { path: '/portal/profile', labelKey: 'nav_vprofile', icon: 'vprofile' },
-      { path: '/portal/application', labelKey: 'nav_vapply', icon: 'vapply' },
-      { path: '/portal/documents', labelKey: 'nav_vdocs', icon: 'vdocs' },
-      { path: '/portal/submit', labelKey: 'nav_vsubmit', icon: 'vsubmit' },
+      { path: '/portal', labelKey: 'nav_vhome', icon: 'vhome', gatedBy: 'listApplications' },
+      { path: '/portal/profile', labelKey: 'nav_vprofile', icon: 'vprofile', gatedBy: 'getVendor' },
+      {
+        path: '/portal/application',
+        labelKey: 'nav_vapply',
+        icon: 'vapply',
+        gatedBy: 'getApplication',
+      },
+      {
+        path: '/portal/documents',
+        labelKey: 'nav_vdocs',
+        icon: 'vdocs',
+        gatedBy: 'listDocuments',
+      },
+      {
+        path: '/portal/submit',
+        labelKey: 'nav_vsubmit',
+        icon: 'vsubmit',
+        gatedBy: 'submitApplication',
+      },
     ],
   },
 ];
