@@ -22,6 +22,23 @@ from . import audit, events, state_machine
 from . import vendors as vendors_service
 
 
+def decided_application(session: Session, vendor_id: uuid.UUID) -> Application | None:
+    """The newest application this vendor has a decision on, or ``None``.
+
+    Four call sites need the row rather than the flattened score `latest_result` returns —
+    the evaluation screen, market intelligence, matching and the vendor register — because
+    each of them prefers the frozen `raw_snapshot` over re-deriving indicators from the
+    current profile. Shared here so that preference is one rule with one query, not four
+    copies that can drift apart; the register was the one that had already drifted.
+    """
+    return session.scalars(
+        select(Application)
+        .where(Application.vendor_id == vendor_id, Application.decided_at.is_not(None))
+        .order_by(Application.decided_at.desc())
+        .limit(1)
+    ).first()
+
+
 def get(session: Session, application_id: uuid.UUID) -> Application:
     application = session.get(Application, application_id)
     if application is None:
@@ -126,6 +143,24 @@ def transition(
     vendor = uow.session.get(Vendor, application.vendor_id)
     if vendor is not None:
         vendors_service.sync_status_from_application(uow, vendor, target)
+
+        # Coming back from `information_requested` is the second freeze (3B, finding 4). The
+        # vendor was asked to correct a figure and did; without this the officer resumes the
+        # review still scoring the number that was superseded, because `raw_snapshot` was
+        # frozen at the original submission and the loop has no edge back through `submit`.
+        # It belongs here, at the only writer of `application.status`, for the same reason
+        # the status itself does: no handler can arrange to skip it.
+        #
+        # Imported locally: `submission` imports this module, so the pair cannot both do it
+        # at module level.
+        if (
+            source is ApplicationStatus.INFORMATION_REQUESTED
+            and target is ApplicationStatus.UNDER_REVIEW
+        ):
+            from . import submission as submission_service
+
+            application.raw_snapshot = submission_service.raw_snapshot_now(uow, vendor)
+            uow.flush()
 
     if target is ApplicationStatus.SUBMITTED:
         events.emit(

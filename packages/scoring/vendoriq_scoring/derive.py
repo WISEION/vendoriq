@@ -126,10 +126,12 @@ def derive_raw(
         raw["C.3"] = len(ongoing)  # ongoing projects — a workload curve, not a count of merit
         raw["G.2"] = len(references)
 
-        # E.1 permanent staff, E.2 engineering headcount (form E.4…E.9).
+        # E.1 permanent staff, E.2 engineering headcount (form E.4…E.8: chief, civil,
+        # architects, electrical, MEP). Form row E.9 is *technicians and foremen*, who are
+        # not engineers, so it is excluded — ADR-008.
         if _is_present(answers.get("E.1")):
             raw["E.1"] = to_number(answers["E.1"])
-        engineer_rows = [f"E.{n}" for n in range(4, 10)]
+        engineer_rows = [f"E.{n}" for n in range(4, 9)]
         if any(_is_present(answers.get(code)) for code in engineer_rows):
             raw["E.2"] = sum(to_number(answers.get(code)) for code in engineer_rows)
 

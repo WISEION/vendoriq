@@ -80,6 +80,25 @@ services:
       retries: 12
     restart: unless-stopped
 
+  # Brief §7.1: a clean `docker compose up` serves the app *with seeded data*. Migrations run
+  # in the api container; the rows are loaded here, once, after the API reports healthy — the
+  # 13 real vendors and their real Rev4 outcomes, the removable demo layer, and the test
+  # accounts without which nobody could log in to look at any of it.
+  #
+  # Dev only, deliberately. The demo layer and the AUTH_MODE=test accounts have no business in
+  # a live system, so a production stack starts empty and is loaded on purpose (`make seed`).
+  # The command is idempotent, so restarting the stack re-runs it harmlessly.
+  seed:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.api
+    profiles: [dev]
+    environment: *api-env
+    depends_on:
+      api: { condition: service_healthy }
+    command: ["python", "-m", "vendoriq_api.seed", "load", "--real", "--demo"]
+    restart: "no"
+
   worker:
     build:
       context: ..

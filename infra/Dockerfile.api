@@ -8,7 +8,7 @@ ENV PYTHONUNBUFFERED=1 \
     PATH="/app/.venv/bin:$PATH"
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libpq5 curl \
+ && apt-get install -y --no-install-recommends libpq5 curl fonts-dejavu-core \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
@@ -16,17 +16,30 @@ COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
 WORKDIR /app
 
 # Dependency layer: copy only the manifests so the layer caches across code changes.
-COPY pyproject.toml uv.lock* ./
+COPY pyproject.toml uv.lock ./
 COPY apps/api/pyproject.toml apps/api/
 COPY apps/worker/pyproject.toml apps/worker/
 COPY packages/scoring/pyproject.toml packages/scoring/
 COPY packages/excel_import/pyproject.toml packages/excel_import/
-RUN uv sync --frozen --no-dev --no-install-workspace || uv sync --no-dev --no-install-workspace
+# `--frozen`, with no fallback. An unlocked `uv sync` behind a `||` would turn a lock file that
+# has drifted from the manifests into a *silently different* dependency set in the production
+# image, while CI's docker-build check stayed green — the one failure the lock file exists to
+# prevent. If this line fails, the fix is `uv lock`, committed.
+RUN uv sync --frozen --no-dev --no-install-workspace
 
 COPY packages/ packages/
 COPY apps/api/ apps/api/
 COPY docs/openapi.yaml docs/openapi.yaml
-RUN uv sync --no-dev
+# The seed CLI resolves `seed/data.json` from the repository root, which inside this image is
+# /app. Without it `python -m vendoriq_api.seed` cannot run in a container at all, and brief
+# §7.1 requires a clean `docker compose up` to come up *with* seeded data. Only the JSON is
+# copied: the Excel workbooks under seed/fixtures/ are test fixtures, and the mocked ERP
+# responses live inside the adapters package.
+COPY seed/data.json seed/data.json
+# Wesa's real application form, already parsed (scripts/freeze-wesa-form.py). The workbook and
+# openpyxl stay out of the image; without this file the vendor portal has no answers to show.
+COPY seed/wesa_form.json seed/wesa_form.json
+RUN uv sync --frozen --no-dev
 
 RUN useradd --system --uid 10001 vendoriq && chown -R vendoriq /app
 USER vendoriq

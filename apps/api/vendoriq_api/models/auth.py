@@ -68,6 +68,9 @@ class ApiKey(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     #: Only the hash is stored; the plaintext key is shown once at creation.
     hashed_key: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    #: First characters of the key, so a person can tell two keys apart in the list without
+    #: the plaintext ever being retrievable. Declared by the contract's ``ApiKey``.
+    prefix: Mapped[str | None] = mapped_column(String(16))
     #: e.g. ``["vendors:read", "projects:write"]``.
     scopes: Mapped[JsonList] = mapped_column(nullable=False, default=list)
     created_by: Mapped[uuid.UUID | None] = mapped_column(
@@ -76,3 +79,33 @@ class ApiKey(Base, TimestampMixin):
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class RevokedSession(Base):
+    """One row per logout, kept only until that token would have expired anyway.
+
+    The session cookie is a stateless signature, so there is nothing to delete when a user
+    logs out — the token stays valid until `exp` no matter what the server does with its
+    cookies. This is the list of tokens that have been withdrawn early (3B, finding 3,
+    migration `0005`).
+
+    Keyed by the token's own `jti` rather than by user: signing out on a phone must not sign
+    out the desktop.
+    """
+
+    __tablename__ = "revoked_session"
+
+    jti: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("app_user.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    #: When the token expires on its own; after that this row proves nothing new. Indexed
+    #: because the only bulk query against this table is the housekeeping delete by expiry.
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    #: Server-side default: the instant belongs to the database, not to whichever process
+    #: happened to handle the logout.
+    revoked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

@@ -20,11 +20,36 @@ from typing import Any
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
+from vendoriq_excel_import.catalog import FIELD_CATALOG
 
 from ..db import UnitOfWork
+from ..errors import ApiError
 from ..models import FieldObservation
 from ..models.enums import SOURCE_TRUST_RANK, ObservationSource
 from . import audit
+
+
+class UnknownFieldCodeError(ApiError):
+    """Raised when a write names a code the application form does not have.
+
+    There are two code namespaces in this system and they look identical. Spec Appendix A
+    gives the **form** 92 codes, `A.1` = "Full legal name". The `sub-4` scoring model gives
+    its 24 **criteria** codes drawn from the same alphabet, where `A.1` = "Construction
+    licence". `derive_raw` is the bridge between them, and it maps form `C.1` (ISO 9001 held?)
+    onto criterion `C.4` — so the two namespaces do not merely differ, they cross.
+
+    This store holds the form namespace: the portal's autosave writes into it, and every
+    reader (`derive_raw` in matching, vendor detail, submission) interprets it that way.
+    Writing a criterion code into it produces no error, no wrong type and no failing test —
+    only a vendor profile that answers "Full legal name" with `3`, and a `derive_raw` that
+    silently finds nothing where it looked. That is exactly what had happened: at the time
+    this check was added, all 404 observations in the seeded database were criterion-coded
+    and not one of the 92 form codes had ever been written (ADR-021).
+
+    A namespace collision is invisible by construction, so it needs a check rather than a
+    convention.
+    """
+
 
 #: Order that decides the winner: best trust first, then newest, then newest row.
 _RESOLUTION_ORDER = (
@@ -153,6 +178,16 @@ def record(
     write_audit: bool = True,
 ) -> FieldObservation:
     """Append one observation. Never updates: the history is the point (ADR-004)."""
+    if field_code not in FIELD_CATALOG:
+        raise UnknownFieldCodeError(
+            status_code=422,
+            code="unknown_field_code",
+            message=(
+                f"{field_code!r} is not a code in the application form (spec Appendix A). "
+                "Scoring-criterion codes look the same and mean something else — they belong "
+                "in the application's raw snapshot, not in the vendor's answers."
+            ),
+        )
     observation = FieldObservation(
         vendor_id=vendor_id,
         field_code=field_code,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -79,6 +79,14 @@ class Settings(BaseSettings):
     default_locale: Literal["az", "en"] = "az"
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
 
+    #: The value shipped in `.env.example`. One string signs every session cookie, TOTP
+    #: challenge and upload ticket in the system, so it being the published default in
+    #: production is not a weak secret, it is no secret at all.
+    PLACEHOLDER_SESSION_SECRET: ClassVar[str] = "change-me-in-production"
+    #: 32 hex characters is 16 bytes of entropy — the floor, not the recommendation. The
+    #: runbook says `openssl rand -hex 32`.
+    MINIMUM_SESSION_SECRET_LENGTH: ClassVar[int] = 32
+
     @model_validator(mode="after")
     def _refuse_test_auth_in_production(self) -> Settings:
         """Brief §6: test mode must be impossible to leave on by accident."""
@@ -86,6 +94,31 @@ class Settings(BaseSettings):
             raise ValueError(
                 "AUTH_MODE=test is refused when APP_ENV=production. "
                 "Set AUTH_MODE=live or change APP_ENV."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _refuse_a_guessable_session_secret_in_production(self) -> Settings:
+        """The companion guard to the one above, and it was missing (3B, finding 9).
+
+        `AUTH_MODE` was checked and `SESSION_SECRET` was not, which meant a production stack
+        could start signing its cookies with the string printed in `infra/.env.example`.
+        Anybody who has read this repository can then mint a session for any role.
+
+        Checked here rather than in the compose overlay because a native deployment never
+        goes through compose, and this is the one place both paths pass through.
+        """
+        if self.app_env != "production":
+            return self
+        if self.session_secret == self.PLACEHOLDER_SESSION_SECRET:
+            raise ValueError(
+                "SESSION_SECRET is still the placeholder from .env.example and APP_ENV is "
+                "production. Generate one: openssl rand -hex 32"
+            )
+        if len(self.session_secret) < self.MINIMUM_SESSION_SECRET_LENGTH:
+            raise ValueError(
+                f"SESSION_SECRET must be at least {self.MINIMUM_SESSION_SECRET_LENGTH} "
+                "characters when APP_ENV=production. Generate one: openssl rand -hex 32"
             )
         return self
 

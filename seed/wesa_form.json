@@ -1,0 +1,247 @@
+{
+  "_source": "seed/fixtures/98dfa150-WESA_Prekvalifikasiya_Muraciet_Formasi.xlsx",
+  "_note": "Wesa's real application form, parsed by packages/excel_import and frozen here so the seed can load it without shipping openpyxl or the workbook into the API image. Regenerate with: make seed-form. apps/api/tests/test_seed_form.py asserts it still matches the workbook.",
+  "voen": "1003915341",
+  "answers": {
+    "A.1": "VVESA MMC",
+    "A.10": "www.wesa.az",
+    "A.11": true,
+    "A.12": "EL-220/2020",
+    "A.13": "2020-09-28",
+    "A.15": true,
+    "A.16": "2020-09-28",
+    "A.17": "MMC",
+    "A.18": 3.0,
+    "A.19": 20.0,
+    "A.2": "3-21-2-2-1/2-28732/2026",
+    "A.20": "AZ66KABA00000000000004320697",
+    "A.3": "1003915341",
+    "A.4": 2015.0,
+    "A.5": "Bakı şəhəri, Nəsimi rayonu, Qulu Quliyev, ev 60, mənzil 4",
+    "A.6": "Həbib Atakişiyev",
+    "A.7": "CEO / Direktor",
+    "A.8": "+994 50 336 70 02",
+    "A.9": "habib.atakisiyev@wesa.az",
+    "B.1": 7678681.31,
+    "B.10": 1200000.0,
+    "B.11": "Yapıkredi, Kapital Bank və Ziraat",
+    "B.12": true,
+    "B.13": "Financial Reporting Center MMC",
+    "B.2": 5275759.15,
+    "B.3": 2612893.68,
+    "B.5": 1208443.06,
+    "B.6": 5029957.95,
+    "B.7": 4280808.3684,
+    "B.9": true,
+    "C.1": true,
+    "C.2": "I1731076497Q",
+    "C.3": "2026-12-10",
+    "C.t1": [
+      {
+        "name": "Nizami Mall",
+        "client": "Delta MMC",
+        "start": "2023",
+        "end": "2024",
+        "duration_months": 12.0,
+        "value": 3015079.84,
+        "project_type": "Fasad işləri"
+      },
+      {
+        "name": "Park Akademiya",
+        "client": "Avanqard MMC",
+        "start": "2024",
+        "end": "2025",
+        "duration_months": 12.0,
+        "value": 1816000.0,
+        "project_type": "Fasad işləri"
+      },
+      {
+        "name": "Central Towers",
+        "client": "SR Construction",
+        "start": "2024",
+        "end": "2025",
+        "duration_months": 12.0,
+        "value": 3352934.8,
+        "project_type": "Fasad işləri"
+      },
+      {
+        "name": "Ravy Tower (Baku Bay Tower)",
+        "client": "Prokon MMC",
+        "start": "2022",
+        "end": "2023",
+        "duration_months": 16.0,
+        "value": 3430153.4,
+        "project_type": "Fasad işləri"
+      },
+      {
+        "name": "Heat Exchanger and Air Coolers / RFP",
+        "client": "SOCAR Downstream",
+        "start": "2024",
+        "end": "2025",
+        "duration_months": 12.0,
+        "value": 6140000.0,
+        "project_type": "Sənaye avadanlıqları"
+      },
+      {
+        "name": "Flue Gas Stack HAOR",
+        "client": "Prokon MMC",
+        "start": "2023",
+        "end": "2024",
+        "duration_months": 12.0,
+        "value": 1500000.0,
+        "project_type": "Polad konstruksiya"
+      },
+      {
+        "name": "Sevinc AVM",
+        "client": "Xəzər-2016 Construction MMC",
+        "start": "2022",
+        "end": "2023",
+        "duration_months": 12.0,
+        "value": 1000000.0,
+        "project_type": "Fasad işləri"
+      },
+      {
+        "name": "Hidravlik test qurğusu (PR 1176)",
+        "client": "SOCAR Downstream",
+        "start": "2024",
+        "end": "2025",
+        "duration_months": 12.0,
+        "value": 948000.0,
+        "project_type": "Sənaye avadanlıqları"
+      },
+      {
+        "name": "Steel Structure Fabrication and Erection",
+        "client": "Delta LTD",
+        "start": "2023",
+        "end": "2024",
+        "duration_months": 12.0,
+        "value": 640000.0,
+        "project_type": "Polad konstruksiya"
+      },
+      {
+        "name": "DTX Elevator Building",
+        "client": "Caspian Road MMC",
+        "start": "2022",
+        "end": "2023",
+        "duration_months": 12.0,
+        "value": 491213.0,
+        "project_type": "Polad konstruksiya"
+      }
+    ],
+    "C.t2": [
+      {
+        "name": "Air Cooler",
+        "client": "SOCAR Downstream",
+        "start": "2025",
+        "planned_end": "2026",
+        "completion_pct": 95.0,
+        "value": 6120000.0,
+        "stage": null
+      },
+      {
+        "name": "The Ritz-Carlton Fasad İşləri",
+        "client": "Pasha Development MMC",
+        "start": "2025",
+        "planned_end": "2026",
+        "completion_pct": 85.0,
+        "value": 211000.0,
+        "stage": "Fasad işləri"
+      }
+    ],
+    "D.1": "Latif Sultanov 132, Bakıxanov, Bakı",
+    "D.10": 10.0,
+    "D.11": 2.0,
+    "D.12": 5.0,
+    "D.13": 0.0,
+    "D.14": true,
+    "D.2": 138.0,
+    "D.3": "Kirayə",
+    "D.4": 1200.0,
+    "D.5": 662.0,
+    "D.6": 44.0,
+    "D.7": 1.0,
+    "D.8": 0.0,
+    "D.9": 33.0,
+    "E.1": 80.0,
+    "E.10": 12.0,
+    "E.11": 40.0,
+    "E.12": true,
+    "E.13": true,
+    "E.14": 1.0,
+    "E.15": 4.0,
+    "E.16": true,
+    "E.2": 0.0,
+    "E.3": 14.0,
+    "E.4": 1.0,
+    "E.5": 5.0,
+    "E.6": 1.0,
+    "E.7": 0.0,
+    "E.8": 1.0,
+    "E.9": 4.0,
+    "F.1": true,
+    "F.10": "2026-12-10",
+    "F.11": 0.0,
+    "F.12": 0.0,
+    "F.13": 0.0,
+    "F.14": 0.0,
+    "F.15": true,
+    "F.16": true,
+    "F.2": "2022-10-14",
+    "F.3": true,
+    "F.4": 48.0,
+    "F.5": true,
+    "F.6": "I1731076505E",
+    "F.7": "2026-12-10",
+    "F.8": true,
+    "F.9": "I1731076512O",
+    "G.1": true,
+    "G.2": "PASHA Insurance OJSC",
+    "G.3": "C-GL-0031/22",
+    "G.4": "USD 250,000 (Property) / USD 65,000 (Bodily)",
+    "G.5": "Layihe esasli (40 gun)",
+    "G.6": true,
+    "G.7": "USD 315,000 (annual aggregate)",
+    "G.t1": [
+      {
+        "client": "Norm",
+        "project": "Fasad işləri",
+        "contact": "Serdar Camdal / serdar.camdal@norm.az"
+      },
+      {
+        "client": "U.S Embassy",
+        "project": "Fasad işləri",
+        "contact": "Anar Rzayev / RzayevA@state.gov"
+      },
+      {
+        "client": "Prokon MMC",
+        "project": "Fasad işləri",
+        "contact": "Azad Namazov / a.namazov@prokon.az"
+      },
+      {
+        "client": "SOCAR Downstream",
+        "project": "Sənaye avadanlıqları",
+        "contact": "Ayaz Yusifov / ayaz.yusifov@socardownstream.az"
+      },
+      {
+        "client": "Delta LTD",
+        "project": "Fasad və polad konstruksiya",
+        "contact": "Rövşən Hacıyev / rovshan.hajiyev@deltaavm.com"
+      },
+      {
+        "client": "Pasha Development MMC",
+        "project": "Fasad işləri",
+        "contact": "Sabir Məmmədzadə / sabir.mammadzada@pre.az"
+      },
+      {
+        "client": "Caspian Road MMC",
+        "project": "Polad konstruksiya",
+        "contact": "Vüsal Əliyev / vusal.aliyev@caspianroad.az"
+      },
+      {
+        "client": "Avanqard MM MMC",
+        "project": "Fasad işləri",
+        "contact": "Said Abdulla / said.abdulla@gcapital.az"
+      }
+    ]
+  }
+}

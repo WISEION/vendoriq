@@ -6,7 +6,7 @@ Importing this package registers every table on ``Base.metadata`` — Alembic's
 
 from __future__ import annotations
 
-from .auth import ApiKey, OtpCode, User
+from .auth import ApiKey, OtpCode, RevokedSession, User
 from .base import Base, TimestampMixin
 from .catalog import Category, VendorCategory
 from .document import Document
@@ -27,6 +27,7 @@ from .enums import (
     ProjectStage,
     Scope,
     ScoreClass,
+    ScoringModelStatus,
     SyncResult,
     UserRole,
     VendorStatus,
@@ -34,7 +35,7 @@ from .enums import (
 )
 from .evaluation import Evaluation
 from .events import AuditEvent, Event
-from .integration import SyncLog, Webhook
+from .integration import AdapterConfig, ImportPreview, SyncLog, Webhook
 from .observation import FieldObservation
 from .performance import PerformanceRecord
 from .project import MatchRun, Project, WorkPackage
@@ -46,6 +47,7 @@ from .vendor import Contact, Vendor
 __all__ = [
     "CONTRACT_ADAPTER_KEYS",
     "SOURCE_TRUST_RANK",
+    "AdapterConfig",
     "AdapterKey",
     "ApiKey",
     "Application",
@@ -65,6 +67,7 @@ __all__ = [
     "Event",
     "EventType",
     "FieldObservation",
+    "ImportPreview",
     "MatchRun",
     "MatchState",
     "ObservationSource",
@@ -73,9 +76,11 @@ __all__ = [
     "Project",
     "ProjectStage",
     "QualificationCycle",
+    "RevokedSession",
     "Scope",
     "ScoreClass",
     "ScoringModel",
+    "ScoringModelStatus",
     "Setting",
     "SyncLog",
     "SyncResult",

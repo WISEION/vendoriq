@@ -3,8 +3,11 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 
-COPY apps/web/package.json apps/web/package-lock.json* ./
-RUN npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+COPY apps/web/package.json apps/web/package-lock.json ./
+# `npm ci`, with no `|| npm install` behind it. The fallback would resolve fresh versions
+# whenever the lock file and package.json disagreed, which is exactly the moment a build must
+# stop instead of quietly shipping a dependency set nobody chose.
+RUN npm ci --no-audit --no-fund
 
 COPY apps/web/ ./
 RUN npm run build

@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 import pytest
-from vendoriq_api.storage import NotConfigured, ObjectNotFound, document_key
+from vendoriq_api.storage import ObjectNotFoundError, StorageNotConfiguredError, document_key
 from vendoriq_api.storage.local import LocalStorage
 from vendoriq_api.storage.s3 import BOTO3_AVAILABLE, S3Storage
 
@@ -27,13 +27,13 @@ def test_put_get_exists_delete(local: LocalStorage) -> None:
 
 
 def test_reading_a_missing_object_raises(local: LocalStorage) -> None:
-    with pytest.raises(ObjectNotFound):
+    with pytest.raises(ObjectNotFoundError):
         local.get("nothing/here.pdf")
 
 
 def test_a_key_cannot_escape_the_storage_root(local: LocalStorage) -> None:
     """The key comes from user-influenced input; traversal must not reach the filesystem."""
-    with pytest.raises(ObjectNotFound):
+    with pytest.raises(ObjectNotFoundError):
         local.get("../../etc/passwd")
     assert local.exists("../../etc/passwd") is False
 
@@ -93,7 +93,7 @@ def test_two_uploads_of_one_filename_do_not_collide() -> None:
 @pytest.mark.skipif(BOTO3_AVAILABLE, reason="boto3 is installed, so the stub path is unreachable")
 def test_the_s3_backend_reports_that_it_is_not_configured() -> None:
     """ADR-005: boto3 is an optional extra. Without it, `s3` fails loudly, not obscurely."""
-    with pytest.raises(NotConfigured, match="boto3"):
+    with pytest.raises(StorageNotConfiguredError, match="boto3"):
         S3Storage(
             bucket="vendoriq",
             endpoint_url="http://localhost:9000",

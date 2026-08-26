@@ -77,7 +77,7 @@ jobs:
         run: uv run alembic check
 
       - name: pytest
-        run: uv run pytest --cov=packages --cov=apps/api/vendoriq_api --cov-report=term-missing
+        run: uv run pytest --cov=packages --cov=apps/api/vendoriq_api --cov-report=term-missing --cov-fail-under=80
 
   web:
     name: Web — tsc, eslint, vitest, build
@@ -95,7 +95,7 @@ jobs:
           cache-dependency-path: apps/web/package-lock.json
 
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: eslint
         run: npm run lint
@@ -152,13 +152,12 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync --all-packages --all-groups
-          cd apps/web && (npm ci --no-audit --no-fund || npm install --no-audit --no-fund)
+          cd apps/web && npm ci --no-audit --no-fund
 
       - name: Migrate and seed
         run: |
           cd apps/api && uv run alembic upgrade head && cd ../..
-          uv run python -m vendoriq_api.seed load --real --demo || \
-            echo "seed CLI lands in phase 1E; the shell suite does not need data yet"
+          uv run python -m vendoriq_api.seed load --real --demo
 
       - name: Install the browser
         working-directory: apps/web

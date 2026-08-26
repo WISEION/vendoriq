@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, Request, Response
 
 from ..config import Settings, get_settings
 from ..errors import ApiError
-from ..storage import LocalStorage, ObjectNotFound, Storage, get_storage
+from ..storage import LocalStorage, ObjectNotFoundError, Storage, get_storage
 
 router = APIRouter(include_in_schema=False)
 
@@ -73,7 +73,7 @@ def download_object(
         raise ApiError(403, "forbidden", "The download link is invalid or has expired.")
     try:
         data = backend.get(key)
-    except ObjectNotFound as exc:
+    except ObjectNotFoundError as exc:
         raise ApiError(404, "not_found", "No such object.") from exc
     disposition = f'attachment; filename="{filename}"' if filename else "attachment"
     return Response(

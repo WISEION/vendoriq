@@ -83,3 +83,38 @@ def test_spec_validates_against_the_openapi_31_metaschema(contract: dict[str, An
     )
     errors = list(validator.OpenAPIV31SpecValidator(contract).iter_errors())
     assert not errors, [f"{list(e.absolute_path)}: {e.message}" for e in errors[:5]]
+
+
+def test_no_description_was_split_by_a_comma_in_a_flow_mapping() -> None:
+    """An unquoted description containing a comma silently becomes two YAML entries.
+
+    Inside a flow mapping — `foo: { type: string, description: A, B }` — an unquoted scalar
+    ends at the first comma. The description is truncated at that point and its tail becomes
+    a **property of the schema**, with a null value. Six of these were shipped before the
+    check existed; one of them turned `PageMeta.total`'s "Rows matching the filter, not rows
+    on this page." into "Rows matching the filter", which says the opposite of what it means
+    to anyone implementing pagination against the published contract.
+
+    Both halves of the damage are invisible to a schema validator: the truncated text is a
+    valid description, and the orphan is a valid property. So this looks for the signature
+    instead — a key that reads as prose and carries no value.
+    """
+    contract = load_contract()
+    orphans: list[str] = []
+
+    def walk(node: object, path: str) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if isinstance(key, str) and " " in key and value is None:
+                    orphans.append(f"{path}.{key!r}")
+                walk(value, f"{path}.{key}")
+        elif isinstance(node, list):
+            for index, value in enumerate(node):
+                walk(value, f"{path}[{index}]")
+
+    walk(contract, "")
+
+    assert not orphans, (
+        "these read as the tail of a description that a comma split; quote the description: "
+        + ", ".join(sorted(orphans))
+    )

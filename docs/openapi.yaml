@@ -1585,6 +1585,9 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/SyncLog" }
         "404": { $ref: "#/components/responses/NotFound" }
+        # The preview exists but can no longer be acted on: already imported, or past its
+        # expiry. `details.reason` is `consumed` or `expired`.
+        "409": { $ref: "#/components/responses/Conflict" }
   /integrations/api-keys:
     get:
       tags: [integrations]
@@ -2143,7 +2146,7 @@ components:
       type: object
       required: [total, page, page_size]
       properties:
-        total: { type: integer, description: Rows matching the filter, not rows on this page. }
+        total: { type: integer, description: "Rows matching the filter, not rows on this page." }
         page: { type: integer }
         page_size: { type: integer }
 
@@ -2328,6 +2331,10 @@ components:
       allOf:
         - $ref: "#/components/schemas/User"
         - type: object
+          # Both are required: the rail is built from `permissions` (ADR-013), so an omitted
+          # list is indistinguishable from "may call nothing" and would render an empty rail,
+          # and the dev banner keys off `auth_mode`. A client must never have to guess either.
+          required: [permissions, auth_mode]
           properties:
             permissions:
               type: array
@@ -2493,7 +2500,7 @@ components:
           type: [object, array, string, number, boolean, "null"]
         unit: { type: [string, "null"] }
         source: { $ref: "#/components/schemas/ObservationSource" }
-        source_ref: { type: [string, "null"], description: File key, API call id or import run id. }
+        source_ref: { type: [string, "null"], description: "File key, API call id or import run id." }
         observed_at: { type: string, format: date-time }
         entered_by: { type: [string, "null"], format: uuid }
         trust_rank: { type: integer, minimum: 1, maximum: 9 }
@@ -2627,6 +2634,19 @@ components:
             declaration: { $ref: "#/components/schemas/Declaration" }
             justification: { type: [string, "null"] }
             checks: { $ref: "#/components/schemas/SubmissionChecks" }
+            completion_pct:
+              type: number
+              minimum: 0
+              maximum: 100
+              description: >-
+                Share of the answerable form catalogue the vendor has filled. Carried here so
+                the form can read it without writing: `patchAnswers` returns the same figure
+                but is refused once the application is submitted, which left the meter
+                reading 0 % for a complete application.
+            computed_fields:
+              type: object
+              additionalProperties: { type: [number, "null"] }
+              description: Server-computed read-only cells (B.4 average turnover, B.8, counts).
             score_released:
               type: boolean
               description: Vendors see the breakdown only after the commission decision.
@@ -2693,7 +2713,7 @@ components:
           type: object
           additionalProperties: { type: number }
           description: Points per group letter, rounded to one decimal after each addition.
-        total: { type: number, description: Sum of the group totals, rounded to one decimal. }
+        total: { type: number, description: "Sum of the group totals, rounded to one decimal." }
         ko: { type: boolean, description: False when any knock-out criterion has a raw value of 0. }
         cls: { $ref: "#/components/schemas/ScoreClass" }
         pass_mark: { type: number }
@@ -3055,11 +3075,30 @@ components:
         package_id: { type: string, format: uuid }
         state: { $ref: "#/components/schemas/MatchState" }
         gap:
+          # An i18n key naming the single change that would move the verdict, not a sentence.
+          # The full vocabulary `_gap()` in packages/scoring/vendoriq_scoring/matching.py can
+          # emit; `no_prequalified_vendor` and `too_few_strong` were missing from this enum.
           type: [string, "null"]
-          enum: [no_vendor_in_category, only_class_c, certificate_missing, capacity_too_small, null]
+          enum:
+            [
+              no_vendor_in_category,
+              no_prequalified_vendor,
+              only_class_c,
+              certificate_missing,
+              capacity_too_small,
+              too_few_strong,
+              null,
+            ]
         candidates:
           type: array
           items: { $ref: "#/components/schemas/MatchCandidate" }
+        missing_certs:
+          type: array
+          description: >-
+            Required certificates no candidate could evidence. A roll-up over the candidate
+            list, not a statement about the package: one hopeless candidate drags its missing
+            certificate in, so read it together with `gap`.
+          items: { type: string }
         eligible_count: { type: integer }
         strong_count: { type: integer }
     MatchCandidate:
@@ -3070,7 +3109,7 @@ components:
         legal_name: { type: string }
         total: { type: number }
         cls: { $ref: "#/components/schemas/ScoreClass" }
-        capacity_value: { type: number, description: Largest completed project, or turnover ÷ divisor for suppliers. }
+        capacity_value: { type: number, description: "Largest completed project, or turnover ÷ divisor for suppliers." }
         capacity_fit: { type: boolean }
         certs_ok: { type: boolean }
         eligible: { type: boolean }
@@ -3087,6 +3126,12 @@ components:
                 certificate_missing,
                 capacity_too_small,
               ]
+        missing_certs:
+          description: >-
+            Required certificates this candidate's own scoring model cannot evidence
+            (ADR-011). Resolved against the model the vendor was scored with.
+          type: array
+          items: { type: string }
 
     # ── intelligence ─────────────────────────────────────────────────────────
     IntelOverview:
@@ -3246,8 +3291,55 @@ components:
         fields_written: { type: integer }
         warnings:
           type: array
-          items: { $ref: "#/components/schemas/ImportWarning" }
+          items: { $ref: "#/components/schemas/SyncWarning" }
         result: { $ref: "#/components/schemas/SyncResult" }
+
+    # What an adapter *run* can report. A superset of `ImportWarning`, not a sibling: the
+    # Excel importer is an adapter like any other, so a run's log carries parser anomalies
+    # (`stale_certificate`, addressed to a sheet and a cell) as readily as transport failures
+    # (`source_unreachable`, addressed to nothing of the sort). The location fields are
+    # therefore optional here and required nowhere.
+    #
+    # `ImportPreview.warnings` keeps the narrower `ImportWarning`, which is the useful half of
+    # the distinction: parsing a workbook cannot fail to reach a host, so a client rendering a
+    # preview will never meet the transport codes.
+    SyncWarning:
+      type: object
+      required: [code, severity, message_az, message_en]
+      properties:
+        code:
+          type: string
+          enum:
+            # parser anomalies — same vocabulary as ImportWarning
+            - stale_certificate
+            - mixed_percent_format
+            - multi_value_cell
+            - no_expiry_literal
+            - mandatory_cell_empty
+            - currency_label_mismatch
+            - unknown_field_code
+            - unparsable_date
+            - unparsable_value
+            - document_status_missing
+            - missing_sheet
+            # failures of the run itself
+            - source_unreachable
+            - source_error_status
+            - source_unparsable
+            - adapter_not_configured
+            - adapter_disabled
+            - adapter_no_field_map
+            - registry_not_configured
+            - mock_record_not_found
+            - workbook_not_found
+            - workbook_unreadable
+        severity: { type: string, enum: [error, warning, info] }
+        field_code: { type: [string, "null"] }
+        sheet: { type: [string, "null"] }
+        cell: { type: [string, "null"] }
+        raw_value: { type: [string, "null"] }
+        message_az: { type: string }
+        message_en: { type: string }
     SyncLogPage:
       allOf:
         - $ref: "#/components/schemas/PageMeta"
@@ -3259,9 +3351,17 @@ components:
               items: { $ref: "#/components/schemas/SyncLog" }
     ImportWarning:
       type: object
-      required: [code, message_az, message_en]
+      required: [code, severity, message_az, message_en]
       properties:
+        severity:
+          # An officer triaging 8 warnings needs to know which one blocks the import. A stale
+          # tax certificate is not the same finding as a percentage written two ways.
+          type: string
+          enum: [error, warning, info]
         code:
+          # The importer's full vocabulary. Three codes were missing, and the WESA fixture
+          # produces two of them, so the contract could not describe anomalies the officer
+          # is actually shown.
           type: string
           enum:
             - stale_certificate
@@ -3272,6 +3372,9 @@ components:
             - currency_label_mismatch
             - unknown_field_code
             - unparsable_date
+            - unparsable_value
+            - document_status_missing
+            - missing_sheet
         field_code: { type: [string, "null"] }
         sheet: { type: [string, "null"] }
         cell: { type: [string, "null"] }
@@ -3325,7 +3428,7 @@ components:
         scopes:
           type: array
           items: { $ref: "#/components/schemas/Scope" }
-        prefix: { type: string, description: First characters of the key, so it can be identified. }
+        prefix: { type: string, description: "First characters of the key, so it can be identified." }
         created_by: { type: [string, "null"], format: uuid }
         created_at: { type: string, format: date-time }
         last_used_at: { type: [string, "null"], format: date-time }
@@ -3435,7 +3538,7 @@ components:
           properties:
             validity_months: { type: integer }
             pass_mark: { type: number }
-            tax_clearance_validity_months: { type: integer, description: A-05, three months. }
+            tax_clearance_validity_months: { type: integer, description: "A-05 tax clearance, valid three months from issue." }
         freshness:
           type: object
           properties:

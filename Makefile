@@ -7,6 +7,12 @@ SHELL := /bin/bash
 
 UV        ?= uv
 PY        ?= .venv/bin/python
+# From the venv, not from PATH. CI runs `uv run ruff`, which resolves the version pinned in
+# uv.lock; a different ruff on a developer's PATH silently disagrees with it. It did: 0.15.8
+# skips Markdown ("formatting is experimental") while the pinned 0.16.4 formats the Python
+# blocks inside it, so `make lint` passed locally on a file CI rejected.
+RUFF      ?= .venv/bin/ruff
+MYPY      ?= .venv/bin/mypy
 API_DIR   := apps/api
 WEB_DIR   := apps/web
 DB_URL    ?= postgresql+psycopg://vendoriq:vendoriq@localhost:5432/vendoriq
@@ -14,7 +20,13 @@ TEST_DB_URL ?= postgresql+psycopg://vendoriq:vendoriq@localhost:5432/vendoriq_te
 API_PORT  ?= 8000
 WEB_PORT  ?= 5173
 
-.PHONY: help setup db-up migrate seed seed-demo purge-demo api web worker test e2e lint format screenshots openapi-validate clean
+.PHONY: help setup db-up migrate seed seed-demo seed-form purge-demo create-admin api web worker test e2e ci \
+	lint format screenshots openapi-validate up prod-up prod-down prod-logs backup restore clean
+
+# Compose invocations. The production stack is the base file *plus* the overlay that turns
+# every development default into a required variable (infra/docker-compose.prod.yml).
+COMPOSE      ?= docker compose -f infra/docker-compose.yml
+PROD_COMPOSE ?= $(COMPOSE) -f infra/docker-compose.prod.yml
 
 help: ## Show the available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[1m%-16s\033[0m %s\n", $$1, $$2}'
@@ -33,11 +45,17 @@ migrate: ## Apply migrations to the app and the test database
 seed: ## Load the real seed data (idempotent) — phase 1E
 	$(PY) -m vendoriq_api.seed load --real
 
+seed-form: ## Re-freeze seed/wesa_form.json from the WESA form workbook
+	$(PY) scripts/freeze-wesa-form.py
+
 seed-demo: ## Load the demo layer on top (is_demo=true) — phase 1E
 	$(PY) -m vendoriq_api.seed load --demo
 
 purge-demo: ## Remove every is_demo row, leaving only real data — phase 1E
 	$(PY) -m vendoriq_api.seed purge-demo
+
+create-admin: ## Create one real staff account — the first user of a live stack (asks for a password)
+	$(PY) -m vendoriq_api.seed create-admin --email "$(EMAIL)" --name "$(NAME)"
 
 api: ## Run the API at http://localhost:$(API_PORT) (/health, /api/docs)
 	DATABASE_URL="$(DB_URL)" $(PY) -m uvicorn vendoriq_api.main:app \
@@ -56,15 +74,28 @@ test: ## Run the Python and the frontend unit tests
 e2e: ## Run the Playwright suite (needs make api and make web running, or CI's servers)
 	cd $(WEB_DIR) && npm run e2e
 
+ci: ## Everything CI runs, in CI's order — run this before pushing
+	@# Three defects reached CI green-locally because a check here was not the check there:
+	@# ruff resolved from PATH instead of the lock, `tsc --noEmit` instead of `tsc --build`,
+	@# and `alembic check` never run at all. This target is the answer to that: one command
+	@# whose steps are copied from .github/workflows, so "it passes locally" means something.
+	$(RUFF) check .
+	$(RUFF) format --check .
+	$(MYPY) .
+	cd $(API_DIR) && DATABASE_URL="$(DB_URL)" ../../$(PY) -m alembic check
+	DATABASE_URL="$(TEST_DB_URL)" $(PY) -m pytest \
+		--cov=packages --cov=apps/api/vendoriq_api --cov-report=term-missing --cov-fail-under=80
+	cd $(WEB_DIR) && npm run lint && npm run typecheck && npm run test && npm run build
+
 lint: ## ruff + mypy + eslint + tsc
-	ruff check .
-	ruff format --check .
-	mypy .
+	$(RUFF) check .
+	$(RUFF) format --check .
+	$(MYPY) .
 	cd $(WEB_DIR) && npm run lint && npm run typecheck
 
 format: ## Apply ruff and prettier formatting
-	ruff format .
-	ruff check --fix .
+	$(RUFF) format .
+	$(RUFF) check --fix .
 	cd $(WEB_DIR) && npm run format
 
 screenshots: ## Capture all 34 screens × AZ/EN into docs/screens/
@@ -72,6 +103,24 @@ screenshots: ## Capture all 34 screens × AZ/EN into docs/screens/
 
 openapi-validate: ## Validate docs/openapi.yaml against the OpenAPI 3.1 metaschema
 	$(PY) -m pytest $(API_DIR)/tests/test_openapi_contract.py -q
+
+up: ## Bring up the development stack in Docker (seeded, http://localhost)
+	$(COMPOSE) --profile dev up --build
+
+prod-up: ## Bring up the production stack (needs infra/.env — see docs/RUNBOOK.md)
+	$(PROD_COMPOSE) --profile prod up --build -d
+
+prod-down: ## Stop the production stack, keeping its volumes
+	$(PROD_COMPOSE) --profile prod down
+
+prod-logs: ## Follow the production logs
+	$(PROD_COMPOSE) --profile prod logs -f
+
+backup: ## Snapshot the running stack's database and documents into ./var/backups
+	@bash scripts/backup.sh
+
+restore: ## Restore a snapshot: make restore SNAPSHOT=var/backups/vendoriq-...
+	@bash scripts/restore.sh "$(SNAPSHOT)"
 
 clean: ## Remove build artefacts and caches
 	rm -rf .pytest_cache .ruff_cache .mypy_cache $(WEB_DIR)/dist $(WEB_DIR)/test-results

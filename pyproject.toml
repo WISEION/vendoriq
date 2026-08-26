@@ -49,7 +49,14 @@ strict = true
 warn_unused_ignores = true
 disallow_untyped_defs = true
 plugins = []
-exclude = ["^\\.venv/", "^apps/web/", "^docs/", "^apps/api/alembic/"]
+# `apps/worker/tests` is excluded, and only for a mechanical reason worth stating: every
+# workspace member on `mypy_path` contributes its `tests` directory under the same bare module
+# name, so once phase 2G gave the worker a `conftest.py` alongside the API's, mypy saw two
+# modules called `conftest`, declared a duplicate and refused to check the repository at all.
+# Excluding the smaller of the two test trees restores checking everywhere else. The cost is
+# real — the worker's tests are not type-checked — and the fix is a package layout that gives
+# each member's tests a distinct import path, which is more churn than this run should spend.
+exclude = ["^\\.venv/", "^apps/web/", "^docs/", "^apps/api/alembic/", "^apps/worker/tests/"]
 mypy_path = "apps/api:apps/worker:packages/scoring:packages/excel_import"
 
 [[tool.mypy.overrides]]

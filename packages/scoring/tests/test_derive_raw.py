@@ -173,7 +173,27 @@ def test_engineers_are_the_sum_of_the_technical_staff_rows(
     wesa: dict[str, float | int | None],
 ) -> None:
     assert wesa["E.1"] == 80
-    assert wesa["E.2"] == 10  # 1 + 4 + 2 + 1 + 1 + 1, form rows E.4…E.9
+    assert wesa["E.2"] == 9  # 1 + 4 + 2 + 1 + 1, form rows E.4…E.8
+
+
+def test_technicians_and_foremen_are_not_counted_as_engineers() -> None:
+    """Form row E.9 is *technicians / foremen* and stays out of E.2 — ADR-008.
+
+    The engineering rows the model means are E.4 chief engineer, E.5 civil, E.6
+    architects, E.7 electrical and E.8 MEP. A workforce of nothing but technicians
+    therefore derives no engineers at all, which is the point: E.2's threshold table
+    pays for qualified engineers, not for site supervision.
+    """
+    engineers_only = derive_raw({"E.4": 1, "E.5": 2, "E.6": 3, "E.7": 4, "E.8": 5}, "sub")
+    assert engineers_only["E.2"] == 15
+
+    with_technicians = derive_raw(
+        {"E.4": 1, "E.5": 2, "E.6": 3, "E.7": 4, "E.8": 5, "E.9": 40}, "sub"
+    )
+    assert with_technicians["E.2"] == 15
+
+    technicians_only = derive_raw({"E.9": 40}, "sub")
+    assert "E.2" not in technicians_only
 
 
 def test_headcount_stays_absent_when_the_section_is_blank() -> None:

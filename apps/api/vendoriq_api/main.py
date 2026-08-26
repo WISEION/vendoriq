@@ -4,9 +4,9 @@ Routers are mounted under ``API_PREFIX`` (``/api``) so one origin serves the SPA
 API behind Caddy, exactly as the Vite dev proxy does locally. ``/health`` is additionally
 mounted at the root because that is where a container health check looks.
 
-Phase 1B/1C mounts auth, vendors, admin and events. Applications, cycles, scoring models,
-projects, intel and integrations land in phase 2 — their operations already have permission
-matrix entries, so adding a router does not require rethinking who may call it.
+Every contract tag has a router module and a mount from phase 2 onward; the phase-2 ones
+start empty and are filled by the task that owns them. Their operations already have
+permission matrix entries, so adding a handler does not require rethinking who may call it.
 """
 
 from __future__ import annotations
@@ -22,11 +22,41 @@ from . import __version__
 from .config import get_settings
 from .errors import install_error_handlers
 from .openapi import contract_yaml, load_contract
-from .routers import admin, auth, events, storage, vendors
+from .routers import (
+    admin,
+    auth,
+    cycles,
+    evaluations,
+    events,
+    integrations,
+    intel,
+    portal,
+    projects,
+    scoring_models,
+    storage,
+    vendors,
+)
 from .schemas import Health
 
 #: Mounted under the API prefix, in contract-tag order.
-FEATURE_ROUTERS = (auth.router, vendors.router, admin.router, events.router, storage.router)
+#:
+#: Every phase-2 router is mounted from the start, empty until its owner fills it in. That
+#: keeps this list out of seven parallel diffs: a worker adds handlers to its own module and
+#: never edits this file, so no mount can be lost to a concurrent write.
+FEATURE_ROUTERS = (
+    auth.router,
+    vendors.router,
+    portal.router,
+    evaluations.router,
+    cycles.router,
+    projects.router,
+    scoring_models.router,
+    intel.router,
+    integrations.router,
+    admin.router,
+    events.router,
+    storage.router,
+)
 
 
 def create_app() -> FastAPI:

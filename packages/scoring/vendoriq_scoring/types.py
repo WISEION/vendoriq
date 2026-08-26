@@ -149,6 +149,11 @@ class Candidate:
     eligible: bool
     #: Machine-readable reasons a candidate is not eligible, e.g. ``["class_below_min"]``.
     reasons: list[str] = field(default_factory=list)
+    #: The required certificates this vendor could not evidence, in the order the package
+    #: asked for them, e.g. ``["iso45001"]``. Empty whenever ``certs_ok`` is true. Names
+    #: the certificate behind a ``certificate_missing`` reason so the screen can say which
+    #: one without re-deriving it (ADR-011).
+    missing_certs: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,6 +172,11 @@ class PackageMatch:
     #: ``too_few_strong`` (eligible A/B vendors exist, fewer than ``strong_min``).
     #: ``None`` when the package is GO.
     gap: str | None = None
+    #: Every required certificate that blocked at least one candidate, sorted. This is
+    #: what a ``certificate_missing`` gap names. It is a roll-up over the candidate list,
+    #: not a statement about the package: an eligible candidate contributes nothing, but
+    #: a hopeless one drags its missing certificate in, so read it together with ``gap``.
+    missing_certs: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)

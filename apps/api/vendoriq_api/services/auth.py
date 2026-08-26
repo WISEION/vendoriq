@@ -21,13 +21,13 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from ..config import Settings
 from ..db import UnitOfWork
 from ..errors import ApiError
-from ..models import Contact, OtpCode, User, Vendor
+from ..models import Contact, OtpCode, RevokedSession, User, Vendor
 from ..models.enums import EventType, UserRole, VendorStatus, VendorType
 from ..security import hashing
 from ..security import totp as totp_module
@@ -227,7 +227,13 @@ def verify_otp(uow: UnitOfWork, settings: Settings, *, email: str, code: str) ->
     # Test mode accepts 000000 *in addition to* a real code — the owner clicks through
     # without an e-mail server, and a real code still behaves exactly as in live mode.
     if matched is None and not (settings.auth_mode == "test" and code == TEST_CODE):
-        uow.flush()
+        # `commit`, not `flush`. A flush writes into the transaction, and `get_uow` rolls that
+        # transaction back the moment this raises — so every wrong guess undid its own
+        # `attempts += 1` and `OTP_MAX_ATTEMPTS` never counted anything (3B, finding 6). The
+        # increment has to outlive the rejection, which is the one place in `services/` where
+        # a refused request deliberately leaves a row behind: not an audit entry about the
+        # caller, but the code's own record of having been guessed at.
+        uow.commit()
         raise invalid
 
     if matched is not None:
@@ -351,8 +357,11 @@ def dev_totp_code(settings: Settings, user: User) -> str | None:
 def issue_session(settings: Settings, user: User) -> SessionIssue:
     """Mint the httpOnly session cookie and its readable CSRF partner."""
     ttl = settings.access_token_ttl_minutes * 60
+    # `jti`: this session's own id, so that logging out can withdraw *this* token without
+    # touching the user's other devices (3B, finding 3). Nothing reads it to establish a
+    # session — only to ask whether one has been revoked early.
     token = sign(
-        {"sub": str(user.id), "role": user.role.value},
+        {"sub": str(user.id), "role": user.role.value, "jti": str(uuid.uuid4())},
         settings.session_secret,
         ttl_seconds=ttl,
     )
@@ -362,6 +371,51 @@ def issue_session(settings: Settings, user: User) -> SessionIssue:
         csrf_token=new_csrf_token(),
         expires_at=datetime.now(UTC) + timedelta(seconds=ttl),
     )
+
+
+def revoke_session(uow: UnitOfWork, settings: Settings, raw_cookie: str | None) -> bool:
+    """Withdraw the session this cookie carries. Returns whether anything was revoked.
+
+    Called by logout, which previously only cleared cookies — leaving a captured cookie
+    authenticating for the rest of its eight hours, which on a shared machine is exactly the
+    window logging out exists to close.
+
+    Tolerant by design: a missing, malformed, expired or already-revoked cookie is not an
+    error, because logout must always succeed. There is nothing a caller could usefully do
+    with a failure, and an endpoint that can refuse to log you out is worse than one that
+    occasionally revokes nothing.
+    """
+    if not raw_cookie:
+        return False
+    try:
+        payload = unsign(raw_cookie, settings.session_secret)
+    except TokenError:
+        return False  # already expired, or never valid: nothing to withdraw
+    try:
+        jti = uuid.UUID(str(payload.get("jti")))
+        user_id = uuid.UUID(str(payload.get("sub")))
+    except (ValueError, TypeError):
+        # A session minted before `jti` existed. It cannot be revoked individually; clearing
+        # the cookie is all logout can do for it, and it expires on its own within the TTL.
+        return False
+
+    now = datetime.now(UTC)
+    # Housekeeping on the way past: once a token would have expired anyway, its row proves
+    # nothing the signature does not. One DELETE per logout keeps the table proportional to
+    # concurrent sessions rather than to logouts ever performed.
+    uow.session.execute(delete(RevokedSession).where(RevokedSession.expires_at < now))
+
+    if uow.session.get(RevokedSession, jti) is not None:
+        return False
+    uow.session.add(
+        RevokedSession(
+            jti=jti,
+            user_id=user_id,
+            expires_at=datetime.fromtimestamp(float(payload.get("exp", 0)), tz=UTC),
+        )
+    )
+    uow.flush()
+    return True
 
 
 def notify_invitation(

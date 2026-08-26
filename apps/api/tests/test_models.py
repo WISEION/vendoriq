@@ -7,6 +7,10 @@ from sqlalchemy import UniqueConstraint
 from vendoriq_api.models import SOURCE_TRUST_RANK, Base, ObservationSource
 
 EXPECTED_TABLES = {
+    "adapter_config",
+    # Not a spec entity: one row per logout, kept only until that token expires anyway, so
+    # that a stateless session can be withdrawn early (3B, finding 3; migration 0005).
+    "revoked_session",
     "api_key",
     "app_user",
     "application",
@@ -17,6 +21,7 @@ EXPECTED_TABLES = {
     "evaluation",
     "event",
     "field_observation",
+    "import_preview",
     "match_run",
     "otp_code",
     "performance_record",
@@ -33,6 +38,14 @@ EXPECTED_TABLES = {
 
 
 def test_every_spec_entity_has_a_table() -> None:
+    """Equality, not containment: a table nobody declared is as wrong as a missing one.
+
+    `adapter_config` and `import_preview` are not in spec §5's entity table. They were added
+    by migration 0004 because the integration layer needed somewhere real to keep per-vendor
+    connector settings and a parsed workbook awaiting confirmation — see ADR-014's sibling
+    reasoning and the migration's own docstring. Listing them here is the deliberate act this
+    assertion exists to force.
+    """
     assert set(Base.metadata.tables) == EXPECTED_TABLES
 
 

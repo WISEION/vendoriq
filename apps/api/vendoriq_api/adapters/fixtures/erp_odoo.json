@@ -1,0 +1,19 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": [
+    {
+      "id": 4471,
+      "name": "Fixture Electrical Works MMC",
+      "vat": "1000000004",
+      "company_registry": "2016",
+      "x_turnover_avg_3y": 2680000.0,
+      "x_equity": 720000.0,
+      "x_employee_count": 38,
+      "x_engineer_count": 6,
+      "x_projects_completed": 5,
+      "x_project_largest_value": 1900000.0,
+      "x_projects_ongoing": 2
+    }
+  ]
+}

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import io
 import uuid
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy import func, select
 
 from ..db import UnitOfWork
@@ -27,11 +28,15 @@ from ..schemas import (
     UserRoleInput,
 )
 from ..security import Principal, get_uow, require
+from ..services import audit_export as audit_export_service
 from ..services import categories as categories_service
 from ..services import settings_store
 from ..services import users as users_service
 
 router = APIRouter(tags=["admin"])
+
+#: `LocaleParam` (openapi.yaml): the language of a generated file's headings, az default.
+Locale = Literal["az", "en"]
 
 
 def category_payload(uow: UnitOfWork, category: CategoryRow) -> Category:
@@ -252,6 +257,29 @@ def list_audit_events(
         total=total,
         page=page,
         page_size=page_size,
+    )
+
+
+@router.get("/admin/audit/export.xlsx")
+def export_audit_log(
+    from_: Annotated[datetime | None, Query(alias="from")] = None,
+    to: datetime | None = None,
+    locale: Locale = Query(default="az"),
+    uow: UnitOfWork = Depends(get_uow),
+    principal: Principal = Depends(require("exportAuditLog")),
+) -> Response:
+    """The audit log as an xlsx, for committee minutes (spec §13) — the ``from``/``to``
+    window the contract gives this operation, laid out for a reader who was not in the room.
+    """
+    workbook = audit_export_service.build_audit_export_workbook(
+        uow.session, from_=from_, to=to, locale=locale
+    )
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="audit-log.xlsx"'},
     )
 
 

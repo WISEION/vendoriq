@@ -1,8 +1,11 @@
 """Outbound e-mail with a log fallback (brief §2: "SMTP from .env, fallback to log").
 
-Templates and the AZ/EN bodies are phase 2G. What exists now is the seam: everything that
-notifies a person goes through :func:`send`, so switching `SMTP_HOST` on is the only change
-needed to make the system actually deliver.
+This module is deliberately just the transport seam: it knows how to hand a subject and a
+body to SMTP, or to the log when ``SMTP_HOST`` is empty, and nothing about what the message
+says. The AZ/EN templates phase 2G adds live in ``services/notifications.py`` — composing a
+message and calling :func:`send` are kept apart so switching `SMTP_HOST` on is still the only
+change needed to make the system actually deliver, and so a template can be unit-tested
+without touching a socket.
 """
 
 from __future__ import annotations

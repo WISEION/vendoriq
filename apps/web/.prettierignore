@@ -1,0 +1,4 @@
+dist
+preview
+node_modules
+src/api/schema.d.ts

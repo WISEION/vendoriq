@@ -57,6 +57,8 @@ Knock-out criteria: `sub-4` → A.1 licence, A.4 tax clearance, F.1 HSE policy.
 
 ```python
 def score(model: ScoringModel, raw: RawIndicators) -> ScoreResult: ...
+
+
 #   RawIndicators = dict[str, float | int | None]     # criterion code -> value
 #   ScoreResult(per: dict[str, float], groups: dict[str, float],
 #               total: float, ko: bool, cls: ScoreClassName)
@@ -112,7 +114,9 @@ returned when `ko` is `False` — the evaluation screen shows both.
 ## 3. `derive_raw`
 
 ```python
-def derive_raw(answers: dict[str, object], vendor_type: Literal["sub","sup","both"]) -> RawIndicators: ...
+def derive_raw(
+    answers: dict[str, object], vendor_type: Literal["sub", "sup", "both"]
+) -> RawIndicators: ...
 ```
 
 Maps application answers (keyed by the field catalogue codes of spec Appendix A, tables as
@@ -147,10 +151,12 @@ observations first and passes plain values.
 ## 4. `match_package` / `match_project`
 
 ```python
-def match_package(pkg: PackageInput, candidates: list[CandidateInput],
-                  params: MatchParams | None = None) -> PackageMatch: ...
-def match_project(project: ProjectInput, candidates: list[CandidateInput],
-                  params: MatchParams | None = None) -> ProjectMatch: ...
+def match_package(
+    pkg: PackageInput, candidates: list[CandidateInput], params: MatchParams | None = None
+) -> PackageMatch: ...
+def match_project(
+    project: ProjectInput, candidates: list[CandidateInput], params: MatchParams | None = None
+) -> ProjectMatch: ...
 ```
 
 `MatchParams(strong_min=2, capacity_ratio=0.40, supplier_turnover_divisor=4.0)` — defaults
@@ -163,9 +169,39 @@ Package rules (spec §11.1, brief §1.7), in order:
 2. **Capacity value** — subcontractor: raw `C.2` (largest completed project). Supplier: raw
    `B.1` (turnover) ÷ `supplier_turnover_divisor`.
    **Capacity fit** — `capacity_value >= pkg.estimated_value * capacity_ratio`.
-3. **Certificates** — `iso9001` is satisfied by raw `C.4` > 0 (subcontractor ISO 9001) or
-   raw `F.1` > 0 (supplier ISO 9001); `iso45001` by raw `F.2` > 0. Unknown certificate keys
-   pass (they are informational until a criterion exists for them).
+3. **Certificates** — resolved against **the model the vendor was scored with**
+   (`vendor["model_version"]`, not `vendor_type`), and a certificate that model has no
+   criterion for is **not held** (ADR-009, ADR-011):
+
+   | Requirement | `sub-4` | `sup-1` |
+   |---|---|---|
+   | `iso9001` | `C.4` ISO 9001 | `F.1` ISO 9001 |
+   | `iso45001` | `F.2` ISO 14001 / 45001 | *no criterion* → never held |
+   | anything else | *no criterion* → never held | *no criterion* → never held |
+
+   The criterion is found by scanning the model's own criterion labels for the standard
+   number (`_CERTIFICATE_STANDARDS`), not from a per-version table, so a version
+   published through the model editor inherits the mapping with its criteria instead of
+   silently evidencing nothing.
+
+   Three behaviours of the original port are now rejected:
+
+   * `C.4 > 0 or F.1 > 0` for everybody — `sub-4` F.1 is the *HSE policy* knock-out, so
+     every subcontractor that cleared KO "held" ISO 9001 with C.4 at zero; `sup-1` C.4 is
+     *product certificates* (CE, GOST, test reports) and `C.3` is manufacturer
+     authorisation. Neither substitutes for a quality-management certificate.
+   * inferring the model from `vendor_type` — a `both` vendor was checked against a
+     rubric its score was never produced with.
+   * **unknown certificate keys pass.** Passing a certificate nobody checked reports a
+     verification that never happened. A false negative is visible (the gap says which
+     certificate is missing and the manager can drop the requirement); a false positive
+     quietly puts an unverified vendor on a shortlist, against spec §12's claim that the
+     intelligence is honest about its own accuracy.
+
+   `Candidate.missing_certs` and `PackageMatch.missing_certs` name the certificates
+   behind a `certificate_missing` reason, so the screen prints *which* one. The `gap` and
+   `reasons` vocabularies themselves are **unchanged** — no new i18n key comes out of
+   this, only the certificate keys the package already listed in `required_certs`.
 4. **Eligible** — prequalified **and** `score.ko` **and** `CLASS_RANK[cls] >= CLASS_RANK[pkg.min_class]`
    **and** certificates satisfied. Rank: `A 5, B 4, C 3, D 2, F 1, KO 0`.
 5. **Strong** — eligible, class A or B, and capacity fit.
@@ -197,12 +233,16 @@ rendered sentence: the engine returns keys, the frontend translates.
 - `test_supplier_model.py` — `sup-1` group maxima sum to 100 and the lead-time curve.
 - `test_matching.py` — the four package states, the capacity rule for both vendor types, the
   project aggregation, and the TQS-238 96 % coverage case.
+- `test_matching.py` (ADR-009 / ADR-011) — ISO 9001 read from each model's own criterion in
+  both directions, a `both` vendor resolved by `model_version`, a supplier unable to
+  evidence `iso45001`, an unknown key reported missing, and the seed's own packages
+  unmoved by any of it.
 
 ---
 
 ## 6. Phase 1A — as built
 
-Implemented, `pytest packages/scoring/tests` → **220 passed**, 98 % line coverage, ruff and
+Implemented, `pytest packages/scoring/tests` → **235 passed**, 98 % line coverage, ruff and
 mypy strict clean. The 13/13 Rev4 gate holds with zero mismatches
 (`tests/test_rev4_fixture.py`).
 
@@ -227,7 +267,6 @@ python -m vendoriq_scoring score  --model sub-4 --raw -
 | §  | Contract said | As built | Why |
 |----|---------------|----------|-----|
 | §3 | `derive_raw(answers, vendor_type)` | plus keyword-only `current_year: int \| None` | `A.2` needs a year and the function must stay pure. Defaults to `date.today().year`, so the documented call is unchanged; a re-score of a closed cycle pins the year and stays reproducible (spec §10.3). |
-| §3 | `E.2` = sum of `E.4`…`E.8` | sum of `E.4`…`E.9` | The task brief for 1A says `E.4..E.9`. `E.9` is *Technicians / foremen*, which is arguably not an engineer — **flagged for the orchestrator**; one-line change in `derive.py` either way. |
 | §3 | KO answers `A.1`, `A.4`, `F.1` pre-filled | ten questions pre-filled (`YES_NO_PREFILL_SUB`) | The 1A brief gives the full table: `A.11→A.1`, `A.15→A.4`, `F.1→F.1`, `C.1→C.4`, `B.9→B.3`, `B.12→B.4`, `E.12→E.3`, `G.1→G.1`, `F.5`/`F.8→F.2`. A superset of §3; every entry is still an overridable pre-fill. |
 | §3 | (silent on suppliers) | `YES_NO_PREFILL_SUP`, a deliberate subset | The A–G form is the *subcontractor* form. Only the questions whose supplier criterion means the same thing are mapped (ISO 9001 moves from `C.4` to `F.1`; references move from `G.2` to `G.1`). `sup-1` `C.3` (manufacturer authorisation, a KO) and `D.3` (lead time) have **no form question** — the officer enters them. |
 | §4 | candidates = vendors in the category | same, but non-prequalified vendors stay in the list carrying `not_prequalified` | The reference drops them before scoring, so the UI can only say "nobody". Eligibility, strength and both verdicts are unchanged. |
@@ -235,7 +274,47 @@ python -m vendoriq_scoring score  --model sub-4 --raw -
 | §2 | `bands`: `v == 0` → `0` | `v == 0` → `spec["zero"]` | Identical for both shipped models (`zero` is 0) and it matches `BandsSpec` in `types.py`; it keeps the JSON self-describing. |
 | §2 | `score(model, raw: RawIndicators)` | `raw: RawIndicatorsInput` (`Mapping`) | `dict` is invariant, so a caller's `dict[str, float]` — the natural shape coming out of observations — could not be passed without a cast. Widening only; `RawIndicators` is unchanged and is still what `derive_raw` returns. |
 
-### Two facts worth knowing before touching this
+### Rulings applied after phase 1A
+
+**ADR-008 — `E.2` excludes technicians and foremen.** `derive_raw` sums form rows
+`E.4`…`E.8` (chief engineer, civil, architects, electrical, MEP). Form row `E.9` is
+*technicians / foremen* (spec Appendix A, doc code `E-02`), who are not engineers, so it is
+out. The 1A port summed `E.4`…`E.9` and flagged it; the orchestrator ruled `E.4`…`E.8`.
+This does **not** move the Rev4 gate: `seed/vendors_seed.json` carries `E.2` as extracted
+from the workbook and never passes through `derive_raw`, so all 13 totals and decisions are
+unchanged. It does change the derived `E.2` of a *form* import — WESA goes from 12 to 8,
+which scores the same 3.0 of 4 (both fall in the `< 16 → 75 %` band).
+
+**ADR-009 — the ISO 9001 requirement is per model, not an "either".** `_certificate_held`
+reads `C.4` for a subcontractor and `F.1` for a supplier, never both. The prototype's
+`C.4 > 0 or F.1 > 0` was wrong in both directions — see §4 rule 3. (ADR-009 keyed this on
+`vendor_type`; ADR-011 below re-keyed it on `model_version`, which is the same answer for
+every vendor that is not `both`.) Pinned by
+`test_a_subcontractors_hse_policy_is_not_an_iso_9001_certificate` and
+`test_a_supplier_holds_iso_9001_through_f_1_even_with_c_4_empty`.
+
+**ADR-011 — resolve against the scored model, and never pass what was not checked.** Two
+rules, one principle: the engine may only claim what it verified.
+
+*The model, not the type.* `_assess` already loads `vendor["model_version"]` to produce
+the score; the certificate check now reads that same model. A `both` vendor is therefore
+checked against whichever rubric actually measured it — a score and an eligibility claim
+quoting different rubrics is a statement about a model the vendor never faced.
+
+*No criterion, no certificate.* A required certificate the model has no criterion for is
+reported missing, replacing the old "unknown key passes". The concrete consequence:
+`sup-1` has no ISO 45001 row, so a supplier can never satisfy an `iso45001` requirement.
+That is the intended answer — a supplier's ISO 45001 status is genuinely unrecorded —
+and it is loud rather than silent.
+
+*Blast radius on the seed: none.* `iso9001` is required on TQS-238 pk1 (facade) and
+TQS-301 pk1 (steel); `iso45001` on TQS-238 pk3 (MEP). All three are work packages matched
+against `sub-4`. No material package requires a certificate, so no supplier is affected,
+and every package state, gap, eligible list and coverage figure for both seed projects is
+byte-identical before and after. `test_no_material_package_in_the_seed_requires_a_certificate`
+pins that, so the day a material package asks for ISO 45001 the test says so first.
+
+### Facts worth knowing before touching this
 
 **The 1.0 that four vendors score is `C.3`, not `A.2`.** `seed/README.md` attributes it to the
 `bands` rule on years in operation. It is not: V02–V04 and V12 have *every* cell `None`, `A.2`
@@ -243,8 +322,15 @@ scores 0, and the single point is `ongoing`'s 25 %-for-zero rung on C.3 (1.0 of 
 `tests/test_rev4_fixture.py::test_an_empty_application_still_scores_one` pins the real
 mechanism. The seed README is worth correcting.
 
-**`iso9001` is near-inert for subcontractors.** The rule is `C.4 > 0 or F.1 > 0`, and in
-`sub-4` F.1 is *HSE policy* — a knock-out criterion. Any subcontractor that clears KO therefore
-"has" ISO 9001 even with C.4 at zero. Ported verbatim from the reference and covered by
-`test_the_iso_9001_check_is_near_inert_for_subcontractors`, so that tightening it is a decision
-someone makes on purpose rather than a bug they discover.
+**Two certificate gaps belong to the models, not to the engine.** Both are recorded and
+neither is fixed here, because a model version is immutable once used (spec §10.3):
+`sub-4` is the frozen Rev4 model all 13 fixture vendors were scored with, and `sup-1` is
+"proposed" until the commission freezes it (brief §1.3). Re-weighting either is the
+commission's call through a new version.
+
+* **`sup-1` has no ISO 45001 criterion.** Its F.2 is the *defect / return record*. Under
+  ADR-011 a supplier therefore cannot evidence ISO 45001 at all and is reported missing
+  it. No seed package asks a supplier for one, so nothing changes today.
+* **`sub-4` F.2 conflates ISO 14001 with ISO 45001.** The criterion is literally labelled
+  "ISO 14001 / 45001", so a subcontractor holding only ISO 14001 registers as holding
+  ISO 45001. The engine cannot separate them from one 0–3 cell.

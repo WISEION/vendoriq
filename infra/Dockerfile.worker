@@ -14,18 +14,22 @@ COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
 
 WORKDIR /app
 
-COPY pyproject.toml uv.lock* ./
+COPY pyproject.toml uv.lock ./
 COPY apps/api/pyproject.toml apps/api/
 COPY apps/worker/pyproject.toml apps/worker/
 COPY packages/scoring/pyproject.toml packages/scoring/
 COPY packages/excel_import/pyproject.toml packages/excel_import/
-RUN uv sync --frozen --no-dev --no-install-workspace || uv sync --no-dev --no-install-workspace
+# `--frozen`, with no fallback. An unlocked `uv sync` behind a `||` would turn a lock file that
+# has drifted from the manifests into a *silently different* dependency set in the production
+# image, while CI's docker-build check stayed green — the one failure the lock file exists to
+# prevent. If this line fails, the fix is `uv lock`, committed.
+RUN uv sync --frozen --no-dev --no-install-workspace
 
 COPY packages/ packages/
 COPY apps/api/ apps/api/
 COPY apps/worker/ apps/worker/
 COPY docs/openapi.yaml docs/openapi.yaml
-RUN uv sync --no-dev
+RUN uv sync --frozen --no-dev
 
 RUN useradd --system --uid 10001 vendoriq && chown -R vendoriq /app
 USER vendoriq

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import io
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import openpyxl
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from vendoriq_api.db import UnitOfWork
@@ -207,6 +210,20 @@ def test_the_last_active_admin_cannot_be_demoted_or_deactivated(
     assert client.delete(f"/api/admin/users/{admin.id}").status_code == 409
 
 
+def test_an_admin_may_demote_themself_when_another_admin_remains(
+    client: TestClient, make_user: Any, login: Any
+) -> None:
+    """The guard (`_guard_last_admin`) only refuses the change that would leave nobody able
+    to undo it — it does not single out acting on one's own account. Confirmed rather than
+    assumed: with a second admin standing, self-demotion is a plain 200."""
+    make_user(UserRole.ADMIN)  # a second admin, so the last-admin guard never trips
+    acting_admin = make_user(UserRole.ADMIN)
+    login(acting_admin)
+    response = client.put(f"/api/admin/users/{acting_admin.id}/role", json={"role": "officer"})
+    assert response.status_code == 200, response.text
+    assert response.json()["role"] == "officer"
+
+
 def test_deactivating_an_account_keeps_the_row(
     client: TestClient, make_user: Any, login: Any
 ) -> None:
@@ -304,6 +321,71 @@ def test_the_audit_log_filters_by_action_and_actor(
     by_actor = client.get(f"/api/admin/audit?actor_id={manager.id}").json()
     assert all(row["action"] == "create" for row in by_action["items"])
     assert all(row["actor_id"] == str(manager.id) for row in by_actor["items"])
+
+
+# ── audit log export ────────────────────────────────────────────────────────
+def test_the_audit_log_export_is_readable_for_committee_minutes(
+    client: TestClient, make_user: Any, login: Any
+) -> None:
+    """Spec §13: "exportable for committee minutes" — a person who was not in the room must
+    be able to read it, so before/after must not be a raw JSON dump in a cell."""
+    manager = make_user(UserRole.MANAGER)
+    login(manager)
+    client.put("/api/admin/settings", json={"qualification": {"validity_months": 6}})
+
+    response = client.get("/api/admin/audit/export.xlsx")
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"].startswith(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+    sheet = openpyxl.load_workbook(io.BytesIO(response.content)).active
+    header = [sheet.cell(row=4, column=col).value for col in range(1, 7)]
+    assert header == ["Tarix və vaxt", "İcraçı", "Əməliyyat", "Obyekt", "Əvvəl", "Sonra"]
+
+    # Newest first, same ordering `listAuditEvents` uses — the settings change is row one.
+    assert sheet.cell(row=5, column=2).value == manager.email
+    assert sheet.cell(row=5, column=3).value == "update"
+    assert sheet.cell(row=5, column=4).value == "setting"
+    after_cell = sheet.cell(row=5, column=6).value
+    assert "qualification.validity_months: 6" in after_cell
+    assert "{" not in after_cell and "}" not in after_cell  # no raw JSON
+
+
+def test_the_audit_log_export_locale_switches_the_headings(
+    client: TestClient, make_user: Any, login: Any
+) -> None:
+    login(make_user(UserRole.ADMIN))
+    client.put("/api/admin/settings", json={"matching": {"strong_min": 4}})
+    response = client.get("/api/admin/audit/export.xlsx", params={"locale": "en"})
+    sheet = openpyxl.load_workbook(io.BytesIO(response.content)).active
+    header = [sheet.cell(row=4, column=col).value for col in range(1, 7)]
+    assert header == ["Timestamp", "Actor", "Action", "Entity", "Before", "After"]
+
+
+def test_the_audit_log_export_honours_the_date_window(
+    client: TestClient, make_user: Any, login: Any
+) -> None:
+    login(make_user(UserRole.MANAGER))
+    client.put("/api/admin/settings", json={"matching": {"strong_min": 3}})
+
+    future = (datetime.now(UTC) + timedelta(days=1)).isoformat()
+    response = client.get("/api/admin/audit/export.xlsx", params={"from": future})
+    assert response.status_code == 200, response.text
+    sheet = openpyxl.load_workbook(io.BytesIO(response.content)).active
+    assert sheet.cell(row=5, column=1).value == "Bu dövr üçün qeyd yoxdur."
+
+
+def test_the_audit_log_export_is_restricted_to_manager_and_admin(
+    client: TestClient, make_user: Any, login: Any
+) -> None:
+    """Contract: `exportAuditLog` admits `manager` and `admin`, same as `listAuditEvents`."""
+    login(make_user(UserRole.OFFICER))
+    assert client.get("/api/admin/audit/export.xlsx").status_code == 403
+
+
+def test_the_audit_log_export_requires_authentication(client: TestClient) -> None:
+    assert client.get("/api/admin/audit/export.xlsx").status_code == 401
 
 
 # ── the event stream ────────────────────────────────────────────────────────
