@@ -8,8 +8,30 @@ import {
 import type { QueryClient } from '@tanstack/react-query';
 import { sessionQueryOptions, homeRouteFor } from '../auth/session';
 import { StaffSignIn } from '../features/auth/StaffSignIn';
-import { VendorRegister } from '../features/auth/VendorRegister';
+import { VendorRegister as VendorSelfRegistration } from '../features/auth/VendorRegister';
 import { VendorSignIn } from '../features/auth/VendorSignIn';
+import {
+  ApplicationsQueue,
+  CommissionSummary,
+  Evaluation,
+  Overview,
+  VendorDetail,
+  VendorRegister,
+} from '../features/manager';
+import { CyclesScreen } from '../features/projects/CyclesScreen';
+import { ProjectEditScreen } from '../features/projects/ProjectEditScreen';
+import { ProjectMatchingScreen } from '../features/projects/ProjectMatchingScreen';
+import { ProjectsListScreen } from '../features/projects/ProjectsListScreen';
+import { DataSources, ErpConnector, ExcelImport } from '../features/integrations';
+import {
+  VendorApplicationForm,
+  VendorDocuments,
+  VendorProfile,
+  VendorStatus,
+  VendorSubmit,
+} from '../features/vendor';
+import { FORM_SECTION_KEYS } from '../features/vendor/fieldCatalog';
+import type { SectionKey } from '../features/vendor/fieldCatalog';
 import { AppShell } from './AppShell';
 import { Page } from './Page';
 import { PAGE_TEXT } from './navigation';
@@ -57,7 +79,7 @@ const staffSignInRoute = createRoute({
 const vendorRegisterRoute = createRoute({
   getParentRoute: () => publicLayoutRoute,
   path: '/register',
-  component: VendorRegister,
+  component: VendorSelfRegistration,
 });
 
 /**
@@ -83,14 +105,187 @@ const protectedLayoutRoute = createRoute({
   component: AppShell,
 });
 
-/** One route per rail entry; nested screens are added by the feature teams under these. */
-const screenRoutes = Object.keys(PAGE_TEXT).map((path) =>
-  createRoute({
-    getParentRoute: () => protectedLayoutRoute,
-    path,
-    component: () => <Page route={path} />,
-  }),
+/**
+ * The screens of `docs/SCREENS.md`, at the addresses that document fixes.
+ *
+ * A screen that has a component is mounted with it; one whose feature has not landed yet
+ * renders the empty `<Page>` its `PAGE_TEXT` entry describes, so every address in the map
+ * resolves from the day it is written rather than 404-ing until its owner finishes.
+ */
+const SCREENS: { path: string; component: () => JSX.Element }[] = [
+  // manager — screens 15, 16, 18
+  { path: '/', component: () => <Page route="/">{<Overview />}</Page> },
+  { path: '/vendors', component: () => <Page route="/vendors">{<VendorRegister />}</Page> },
+  {
+    path: '/applications',
+    component: () => <Page route="/applications">{<ApplicationsQueue />}</Page>,
+  },
+  // projects & cycles — screens 21, 22
+  { path: '/cycles', component: () => <Page route="/cycles">{<CyclesScreen />}</Page> },
+  { path: '/projects', component: () => <Page route="/projects">{<ProjectsListScreen />}</Page> },
+  // integrations — screen 28
+  { path: '/integrations', component: () => <Page route="/integrations">{<DataSources />}</Page> },
+  // vendor portal — screens 4, 5, 13, 14
+  { path: '/portal', component: () => <Page route="/portal">{<VendorStatus />}</Page> },
+  {
+    path: '/portal/profile',
+    component: () => <Page route="/portal/profile">{<VendorProfile />}</Page>,
+  },
+  {
+    path: '/portal/documents',
+    component: () => <Page route="/portal/documents">{<VendorDocuments />}</Page>,
+  },
+  {
+    path: '/portal/submit',
+    component: () => <Page route="/portal/submit">{<VendorSubmit />}</Page>,
+  },
+];
+
+/**
+ * Paths a route below already owns, and which must therefore NOT also get a generated
+ * placeholder. `/portal/application` is the one that bites: `PAGE_TEXT` describes it because
+ * the rail links to it, and the redirect route owns it because it is not a screen of its own.
+ * Registering both made TanStack throw "Duplicate routes found" at router construction — a
+ * blank page in every browser, while typecheck, lint, vitest and the build all stayed green.
+ */
+const CLAIMED_PATHS = new Set(['/portal/application']);
+
+/** Addresses whose feature has not landed yet — still reachable, still headed and described. */
+const PENDING_SCREENS = Object.keys(PAGE_TEXT).filter(
+  (path) => !CLAIMED_PATHS.has(path) && !SCREENS.some((screen) => screen.path === path),
 );
+
+const screenRoutes = [
+  ...SCREENS.map((screen) =>
+    createRoute({
+      getParentRoute: () => protectedLayoutRoute,
+      path: screen.path,
+      component: screen.component,
+    }),
+  ),
+  ...PENDING_SCREENS.map((path) =>
+    createRoute({
+      getParentRoute: () => protectedLayoutRoute,
+      path,
+      component: () => <Page route={path} />,
+    }),
+  ),
+];
+
+/**
+ * Screens reached from a parent rather than the rail (`docs/SCREENS.md` names the seven).
+ * Each takes its parameter as a prop, so the component knows nothing about the router.
+ */
+const vendorDetailRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/vendors/$vendorId',
+  component: function VendorDetailRoute() {
+    const { vendorId } = vendorDetailRoute.useParams();
+    return <VendorDetail vendorId={vendorId} />;
+  },
+});
+
+const evaluationRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/applications/$applicationId',
+  component: function EvaluationRoute() {
+    const { applicationId } = evaluationRoute.useParams();
+    return <Evaluation applicationId={applicationId} />;
+  },
+});
+
+const commissionSummaryRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/applications/$applicationId/summary',
+  component: function CommissionSummaryRoute() {
+    const { applicationId } = commissionSummaryRoute.useParams();
+    return <CommissionSummary applicationId={applicationId} />;
+  },
+});
+
+const projectCreateRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/projects/new',
+  component: () => <ProjectEditScreen />,
+});
+
+const projectMatchingRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/projects/$projectId',
+  component: function ProjectMatchingRoute() {
+    const { projectId } = projectMatchingRoute.useParams();
+    return <ProjectMatchingScreen projectId={projectId} />;
+  },
+});
+
+const projectEditRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/projects/$projectId/edit',
+  component: function ProjectEditRoute() {
+    const { projectId } = projectEditRoute.useParams();
+    return <ProjectEditScreen projectId={projectId} />;
+  },
+});
+
+const excelImportRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/integrations/excel-import',
+  component: () => <ExcelImport />,
+});
+
+const erpConnectorRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/integrations/adapters/$adapter',
+  component: function ErpConnectorRoute() {
+    const { adapter } = erpConnectorRoute.useParams();
+    return <ErpConnector adapter={adapter} />;
+  },
+});
+
+/**
+ * Sections A–G of the application form: seven addresses, one component.
+ * `/portal/application` alone redirects to A rather than showing an eighth, empty thing.
+ */
+const applicationRedirectRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/portal/application',
+  beforeLoad: () => {
+    throw redirect({ to: '/portal/application/$section', params: { section: 'A' } });
+  },
+});
+
+const applicationSectionRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/portal/application/$section',
+  parseParams: (params: Record<string, string>) => {
+    // An unknown letter is not a section; sending it to A beats rendering an empty form.
+    const section = params.section?.toUpperCase() ?? 'A';
+    return {
+      section: (FORM_SECTION_KEYS.includes(section as SectionKey) ? section : 'A') as SectionKey,
+    };
+  },
+  component: function ApplicationSectionRoute() {
+    const { section } = applicationSectionRoute.useParams();
+    return (
+      <Page route="/portal/application">
+        <VendorApplicationForm section={section} />
+      </Page>
+    );
+  },
+});
+
+const nestedRoutes = [
+  vendorDetailRoute,
+  evaluationRoute,
+  commissionSummaryRoute,
+  projectCreateRoute,
+  projectMatchingRoute,
+  projectEditRoute,
+  excelImportRoute,
+  erpConnectorRoute,
+  applicationRedirectRoute,
+  applicationSectionRoute,
+];
 
 const notFoundRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
@@ -100,7 +295,7 @@ const notFoundRoute = createRoute({
 
 export const routeTree = rootRoute.addChildren([
   publicLayoutRoute.addChildren([vendorSignInRoute, staffSignInRoute, vendorRegisterRoute]),
-  protectedLayoutRoute.addChildren([...screenRoutes, notFoundRoute]),
+  protectedLayoutRoute.addChildren([...screenRoutes, ...nestedRoutes, notFoundRoute]),
 ]);
 
 export { homeRouteFor };

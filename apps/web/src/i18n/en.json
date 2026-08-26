@@ -328,5 +328,6 @@
   "ko_failed": "Failed a mandatory criterion",
   "class_below_min": "Class below the package minimum",
   "iso9001": "ISO 9001",
-  "iso45001": "ISO 45001"
+  "iso45001": "ISO 45001",
+  "nav_cycles": "Cycles"
 }
