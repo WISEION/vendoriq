@@ -440,3 +440,33 @@ left implicit.
 **Process note, not a decision.** Task 2B edited `apps/api/pyproject.toml`, `uv.lock` and
 `infra/Dockerfile.api` — none of which it owns — instead of filing a change request as briefed.
 The dependency itself is the right call and is kept; the rule stands, and the worker was told.
+
+---
+
+## ADR-016 — The post-prequalification change request is refused, not implemented
+
+**Status:** Accepted (phase 2) · **Decided by:** orchestrator
+
+Spec §7 says a vendor's profile edit after prequalification "creates a change request the
+officer confirms". No contract operation, table or screen exists for that queue, and task 2A
+correctly filed it as a change request instead of inventing one.
+
+**Ruling: the refusal stays; the workflow is out of scope for this run.**
+
+What already exists is the safe half, built in phase 1B: `services/vendors.py` refuses a
+vendor's edit of a prequalified profile outright, with a message saying it goes through a
+change request. The reason is in that module's own comment and it is the right one — silently
+accepting the edit would let a prequalified vendor rewrite the basis of its own score after
+the commission signed it.
+
+What does not exist is the queue an officer works. Building it means a table, at least two
+contract operations, and a screen — and `docs/SCREENS.md` has **34 screens, none of which is a
+change-request queue**. The brief §4.2 screen inventory is the scope of this run; adding a
+thirty-fifth screen on the strength of one clause is exactly the quiet widening the
+orchestrator is supposed to refuse.
+
+**Consequences.** A prequalified vendor that needs a correction contacts the officer, who has
+`patchVendor` with a mandatory reason (spec §6.5) and writes a `manual` observation — the audit
+trail the change-request queue would have produced, without the queue. The portal must say so
+plainly rather than showing a dead control: a bare 409 tells the vendor "no" with no path.
+This goes into `docs/REPORT.md` as a known gap with the shape the endpoint should take.
