@@ -62,6 +62,21 @@ SOURCE_TRUST_RANK: dict[ObservationSource, int] = {
 }
 
 
+class ScoringModelStatus(StrEnum):
+    """Publication state of a model version, spec §10.3.
+
+    Distinct from ``ScoringModel.is_locked``: ``status`` is the commission's editorial
+    judgement (brief §1.3 marks the supplier model "proposed" until the commission freezes
+    it), while ``is_locked`` is the mechanical fact that an application has been scored with
+    the version and it can no longer be edited. A model can be locked and still proposed.
+    """
+
+    DRAFT = "draft"
+    PROPOSED = "proposed"
+    ACTIVE = "active"
+    RETIRED = "retired"
+
+
 class CycleKind(StrEnum):
     TENDER = "tender"
     PERIODIC = "periodic"

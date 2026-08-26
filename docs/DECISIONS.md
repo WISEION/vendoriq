@@ -361,3 +361,40 @@ their own rail entries with the gating operation named: 2C adds `/cycles` (`list
 2F the four `/admin/*` screens. They were left out of the rail here rather than added blind,
 because a rail entry pointing at a route that does not exist yet does not type-check against
 the router's registry.
+
+---
+
+## ADR-014 — `scoring_model` carries what the contract requires; `currency` and `total_max` stay out
+
+**Status:** Accepted (phase 1, wave 2) · **Decided by:** orchestrator · Migration `0003`
+
+The `scoring_model` table could not serve the contract's `ScoringModel`. Three fields the
+contract lists as **required** had no column — `name_az` and `name_en`
+(`ScoringModelSummary.required`) and `groups` (`ScoringModel.required`) — and the declared
+`status` had none either. The phase-1E seed worked around it by putting `name_az` in a single
+`name` column and the rest into the free-form `notes` JSONB, then flagged the gap instead of
+filing a migration. That was the right call: migrations are the orchestrator's, and the
+workaround would otherwise have become the design.
+
+Migration `0003` renames `name` → `name_az`, adds `name_en` (backfilled from `name_az`, so the
+`NOT NULL` lands without inventing a translation), adds `groups`, and adds `status` as a new
+`scoring_model_status` enum.
+
+**`status` is not `is_locked`.** `status` is the commission's editorial judgement — brief §1.3
+requires the supplier model to read "proposed" until the commission freezes it. `is_locked` is
+the mechanical fact that an application has been scored with the version, after which spec
+§10.3 makes it immutable. A version can be locked and still proposed. With one column the two
+could not both be said, and the supplier model's "proposed" label — a requirement, not a nicety
+— had nowhere to live. It now reads `proposed` in the database.
+
+**Deliberately not columns.** `currency`: ADR-007 fixes it at AZN and states that no conversion
+exists anywhere in the code, so a column whose only legal value is `AZN` would advertise a
+capability the system does not have. It is served as the constant it is. `total_max`: it is the
+sum of the criteria maxima. Stored separately it can drift from them, and then two numbers both
+claim to be the total — the failure mode the append-only observation model (ADR-004) exists to
+avoid elsewhere.
+
+**Consequences.** `notes` returns to what its docstring always said it was: a free-form note
+about what changed between versions, not an overflow bucket. The phase-2D model editor can
+create a version with a bilingual name, a status and its group headings without a schema change.
+`alembic check` reports no drift; the migration was applied, rolled back and re-applied.

@@ -36,7 +36,9 @@ def cycle(session: Session) -> QualificationCycle:
         ScoringModel(
             version=version,
             vendor_type=VendorType.SUB,
-            name="Test model",
+            name_az="Sınaq modeli",
+            name_en="Test model",
+            groups=[],
             criteria=[],
             classes=[],
             pass_mark=70,

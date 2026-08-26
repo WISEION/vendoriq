@@ -55,10 +55,13 @@ the gate for phase 1A; a mismatch on any row is a failed port, not a rounding op
 | V12 | Golden ABA | 1 | KO — RƏDD |
 | V13 | İNPROCON MMC | 83.5 | B — Yaxşı (DƏVƏT) |
 
-Note V02–V04 and V12: a vendor that submitted nothing still scores 1, because A.2 (years in
-operation) is a `bands` criterion whose points are literal rather than scaled. Reproducing that
-1 is part of the test — it is the cheapest proof that the `bands` rule was ported correctly and
-not "simplified".
+Note V02–V04 and V12: a vendor that submitted nothing still scores 1, and it is **not** because
+of A.2. A.2 (years in operation) is a `bands` criterion whose `zero` value is 0 — at a raw value
+of 0 it contributes nothing. The 1.0 comes from C.3 (ongoing projects), an `ongoing` criterion
+whose curve gives a **25 % floor even at zero** (`0 → 25 %, ≤3 → 50 %, ≤6 → 100 %, >6 → 75 %` —
+brief §1.2): `R1(4 × 0.25) = 1.0`, and every other criterion on an empty submission is 0.
+Reproducing that 1 is part of the test — it is the cheapest proof that the `ongoing` curve's
+zero-floor was ported correctly and not "simplified" to zero like every other empty answer.
 
 ### `fixtures/` — importer test files
 
@@ -88,14 +91,44 @@ The names carry a hash prefix because that is how the files arrived; do not rena
 
 ## Seed CLI
 
-`make seed` calls `python -m vendoriq_api.seed`, implemented in phase 1E. Contract for that
-implementation:
+`make seed` / `make seed-demo` / `make purge-demo` call `python -m vendoriq_api.seed`
+(`apps/api/vendoriq_api/seed/`, phase 1E). What it actually does:
 
-* **Idempotent.** Re-running matches existing rows by natural key (VÖEN for vendors, `code` for
-  categories and projects, `version` for scoring models) and updates instead of duplicating.
-* **Ordered.** Scoring models and categories first, then vendors, contacts, documents,
-  observations; projects and packages last.
-* **Provenance.** Every seeded value is written as a `field_observation` with
-  `source = "excel"` and `source_ref = "seed/data.json"`, never as a direct column write —
-  the seed goes through the same door as any adapter (ADR-004).
-* **Test accounts** are created only when `AUTH_MODE=test` (`docs/TEST_ACCOUNTS.md`).
+* **Idempotent.** Re-running matches existing rows by natural key and updates instead of
+  duplicating: `external_ref` for vendors and projects (VÖEN cannot serve — four of the
+  thirteen real vendors have none, brief §1.10), `code` for categories, `version` for
+  scoring models, `(vendor_id, cycle_id)` for applications. A `field_observation` is matched
+  on `(vendor_id, field_code, source, source_ref)` — the same value re-appearing on a second
+  run is not a new fact, so it is not appended again.
+* **Ordered.** Scoring models and categories first, then the 13 vendors (contacts,
+  observations), then the real project and the qualification cycle (`load --real`); category
+  assignments, demo suppliers, work packages and document expiry rows last (`load --demo`,
+  which requires `load --real` to have already run).
+* **Provenance is split, not uniform.** ADR-004 ("no `vendor.turnover` column") is about
+  *scoring* fields — there genuinely is no such column. Vendor identity — legal name, VÖEN,
+  registration year, address, region, website — **is** a `Vendor` column (`models/vendor.py`),
+  and brief §1.10 lists it separately from "raw indicators". The seed writes identity as
+  columns and the 24 Rev4 raw indicators (`A.1` … `G.2`) as append-only `field_observation`
+  rows, `source = excel`, `source_ref` naming the Rev4 workbook — never the reverse.
+* **The 13 Rev4 totals are re-verified, not trusted.** Each vendor's `raw` map is recomputed
+  with `packages/scoring` before its application is written; a mismatch against `sheetTotal`
+  raises and the whole `load --real` transaction rolls back rather than storing a wrong score.
+* **Test accounts** are created only when `AUTH_MODE=test` (`services/accounts.py`,
+  `docs/TEST_ACCOUNTS.md`), after the 13 vendors — so `habib.atakisiyev@wesa.az` and
+  `a.tabit@shield.az` link to the real Wesa/Shield rows instead of getting a placeholder.
+* **`purge-demo`'s scope is the real/demo axis above** — every `is_demo=True` row in
+  `vendor`, `contact`, `category`, `vendor_category`, `document`, `project`, `work_package`,
+  `qualification_cycle`, `application`, `performance_record`. `app_user` also carries
+  `is_demo`, but that flags a *test account* (gated by `AUTH_MODE`, its own lifecycle in
+  `services/accounts.py`), a different axis — `purge-demo` leaves it alone.
+* **`purge-demo` never takes a login with it.** `vendor.new@vendoriq.test` — the one seeded
+  account with no real vendor — gets a placeholder `Vendor` that genuinely **is**
+  `is_demo=True` real/demo-axis data, and `app_user.vendor_id` is `ON DELETE CASCADE`
+  (`models/auth.py`). Deleting that placeholder by the letter of "every `is_demo` row" would
+  therefore delete the account too, and the seven logins `docs/TEST_ACCOUNTS.md` promises
+  would quietly become six. `purge-demo` excludes any vendor a live `app_user` still points
+  at from every delete, so it does not — while `AUTH_MODE=test`, the guarantee that all seven
+  accounts work is a guarantee about the *mode*, not about the demo layer, and a demo-data
+  command is not where an account's lifecycle gets decided. Removing `vendor.new` for good is
+  `AUTH_MODE=live` and `services.accounts.purge_test_accounts`, same as the rest of the
+  test-account layer.
