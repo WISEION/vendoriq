@@ -22,6 +22,23 @@ from . import audit, events, state_machine
 from . import vendors as vendors_service
 
 
+def decided_application(session: Session, vendor_id: uuid.UUID) -> Application | None:
+    """The newest application this vendor has a decision on, or ``None``.
+
+    Four call sites need the row rather than the flattened score `latest_result` returns —
+    the evaluation screen, market intelligence, matching and the vendor register — because
+    each of them prefers the frozen `raw_snapshot` over re-deriving indicators from the
+    current profile. Shared here so that preference is one rule with one query, not four
+    copies that can drift apart; the register was the one that had already drifted.
+    """
+    return session.scalars(
+        select(Application)
+        .where(Application.vendor_id == vendor_id, Application.decided_at.is_not(None))
+        .order_by(Application.decided_at.desc())
+        .limit(1)
+    ).first()
+
+
 def get(session: Session, application_id: uuid.UUID) -> Application:
     application = session.get(Application, application_id)
     if application is None:

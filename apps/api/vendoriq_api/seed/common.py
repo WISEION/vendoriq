@@ -154,13 +154,18 @@ def get_or_create_contact(
 def ensure_observations(
     uow: UnitOfWork,
     vendor: Vendor,
-    raw: Mapping[str, float | int],
+    answers: Mapping[str, float | int],
     *,
     source: ObservationSource,
     source_ref: str,
     at: datetime,
 ) -> int:
-    """Write one observation per raw indicator, skipping any the seed already wrote.
+    """Write one observation per **form answer**, skipping any the seed already wrote.
+
+    ``answers`` is keyed by the application form's codes (spec Appendix A), which is what
+    this store holds — `observations_service.record` now refuses anything else. It used to
+    be handed the Rev4 workbook's *raw indicators*, keyed by `sub-4`'s criterion codes,
+    which share the same alphabet and mean different things; see ADR-021.
 
     "Already wrote" means the same vendor, field code, source and ``source_ref`` — the
     seed's own natural key for a row it authored (README: "Provenance"). A later change of
@@ -168,7 +173,7 @@ def ensure_observations(
     a second run with the same value is not.
     """
     created = 0
-    for field_code, value in raw.items():
+    for field_code, value in answers.items():
         exists = uow.session.scalar(
             select(FieldObservation.id).where(
                 FieldObservation.vendor_id == vendor.id,

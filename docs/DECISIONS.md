@@ -624,3 +624,69 @@ system would look any different afterwards.
 **What is still unverified.** No Docker daemon exists on the build host (brief §9), so the
 images have never been built and the stack has never been started. `docs/RUNBOOK.md` says so
 in its first paragraph rather than in a footnote.
+
+## ADR-021 — Two code namespaces share one alphabet, and the seed was writing into the wrong one
+
+**Context.** Found by task 3A while cross-checking the vendor portal against the API, not by
+any test — and this is the most serious defect in the build.
+
+Spec Appendix A gives the application **form** 92 field codes. `sub-4` gives its 24 **scoring
+criteria** codes drawn from the same alphabet. They are different questions:
+
+| code | form (Appendix A) | criterion (`sub-4`) |
+|---|---|---|
+| `A.1` | Full legal name | Construction licence |
+| `A.2` | Trade register number | Years in operation |
+| `C.1` | ISO 9001 held? | Similar projects (5y) |
+| `F.1` | HSE policy document? | HSE policy & plan |
+
+The namespaces do not merely differ, they **cross**: `derive_raw` is the bridge between them
+and maps form `C.1` onto criterion `C.4`. So no single code is a reliable clue about which
+namespace a value belongs to.
+
+`field_observation` holds the **form** namespace. The portal's autosave writes into it
+(`services/answers.py`, keyed from `FIELD_CATALOG`), and every reader interprets it that way
+— `derive_raw(current_profile, …)` in matching, in submission, in the vendor register.
+
+The seed wrote the Rev4 workbook's **criterion-coded raw indicators** into it, for all 13 real
+vendors and all 4 demo suppliers. At the time this was found, **all 404 observations in the
+seeded database were criterion-coded and not one of the 92 form codes had ever been written.**
+
+**What it actually did.** The vendor portal showed, for a real prequalified vendor,
+"Full legal name: 3", "Trade register number: 11", "Year of registration: 3". And more quietly:
+`derive_raw` went looking for form `A.11` ("construction licence held?") in a profile that had
+no form codes at all, found nothing, and returned near-empty indicators — so every path that
+falls back to the live profile silently reported almost nothing. No error, no wrong type, no
+failing test. A namespace collision cannot announce itself.
+
+**Ruling.**
+
+1. `observations_service.record` **refuses** a code that is not in `FIELD_CATALOG`. This is
+   the actual fix; everything else follows from it. A convention that two namespaces must not
+   be confused is worth nothing when both are strings that look alike — it needs a check at
+   the one place every write passes through.
+2. The seed no longer writes `row["raw"]` as field observations. Nothing is lost: those
+   values are stored unchanged as the application's `raw_snapshot`, which is where
+   `services/evaluation.py`, `services/intel.py` and `services/matching.py` already prefer to
+   read them.
+3. `GET /vendors/{id}` now prefers that snapshot too. It was the one reader that always
+   derived from the live profile, so with the profile correctly empty it would have reported a
+   register full of zeroes for vendors whose real indicators were sitting on a decided
+   application. The shared `applications_service.decided_application` replaces what had become
+   four copies of the same query, one of which had drifted.
+
+**Consequences.** The 13 real vendors now have **no form answers at all**, and that is the
+truth: Uni Ko scored them from a spreadsheet and never collected an Appendix A form from any
+of them. Brief §1.10 — "unknown real facts stay empty" — is the rule, and this is the case it
+was written for. No score, class, total or coverage figure changes: every one of them is
+computed from `raw_snapshot`, and the 13/13 Rev4 sheet match and TQS-238's 96 % both still
+hold.
+
+The cost is that the vendor form screens have nothing to show for a real vendor. The demo
+layer answers that, per ADR-018 — a demo application filled with genuine, form-coded answers,
+which is also the only data in the system that exercises `derive_raw` end to end.
+
+**What let it live this long.** `docs/DECISIONS.md` ADR-008 already recorded the symptom —
+"the Rev4 fixture does not confirm this, because `vendors_seed.json` bypasses `derive_raw`" —
+and stopped there. The observation that the seed never goes through the bridge between the two
+namespaces was the whole bug, written down and not followed.

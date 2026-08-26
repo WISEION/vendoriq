@@ -44,7 +44,10 @@ from vendoriq_scoring import ScoreResult
 #: The 13 real vendors' own expectation, straight from seed/data.json (the acceptance
 #: fixture brief §1.10 and seed/README.md both point at).
 _DATA = load_seed_data()
-_RAW_OBSERVATIONS_PER_VENDOR = 24
+#: `sub-4` has 24 criteria, and the Rev4 workbook records a raw indicator for each. They are
+#: stored as the application's `raw_snapshot` — *not* as vendor field observations, which are
+#: the form's own namespace and mean something else under the same codes (ADR-021).
+_RAW_INDICATORS_PER_VENDOR = 24
 _SUPPLIER_CRITERIA_COUNT = 23
 
 
@@ -69,7 +72,9 @@ def test_load_real_loads_every_documented_entity(uow: UnitOfWork, settings: Sett
     assert summary.project_created is True
     assert summary.cycle_created is True
     assert summary.applications_created == 13
-    assert summary.observations_created == 13 * _RAW_OBSERVATIONS_PER_VENDOR
+    # No field observations: Uni Ko never collected these vendors' form answers, they were
+    # scored from a spreadsheet. The indicators are on the applications, asserted below.
+    assert summary.observations_created == 0
 
     session = uow.session
     # 13 real vendors, plus the one `vendor.new@vendoriq.test` placeholder that
@@ -80,7 +85,14 @@ def test_load_real_loads_every_documented_entity(uow: UnitOfWork, settings: Sett
     assert _count(session, Category) == 15
     assert _count(session, ScoringModel) == 2
     assert _count(session, Application) == 13
-    assert _count(session, FieldObservation) == 13 * _RAW_OBSERVATIONS_PER_VENDOR
+    assert _count(session, FieldObservation) == 0
+    snapshots = [
+        application.raw_snapshot
+        for application in session.scalars(select(Application))
+        if application.raw_snapshot is not None
+    ]
+    assert len(snapshots) == 13
+    assert all(len(snapshot) == _RAW_INDICATORS_PER_VENDOR for snapshot in snapshots)
 
 
 def test_the_thirteen_recomputed_totals_match_the_rev4_sheet(
@@ -256,7 +268,8 @@ def test_load_demo_adds_only_is_demo_rows(uow: UnitOfWork, settings: Settings) -
     assert summary.projects_created == 1
     assert summary.work_packages_created == 12
     assert summary.documents_created == 18
-    assert summary.supplier_observations_created == 4 * _SUPPLIER_CRITERIA_COUNT
+    # As for the real vendors: criterion-coded indicators are the application's snapshot.
+    assert summary.supplier_observations_created == 0
 
     demo_vendors = session.scalars(select(Vendor).where(Vendor.is_demo.is_(True))).all()
     # 4 demo suppliers + the one placeholder `vendor.new` account creates (accounts.py).
@@ -496,16 +509,27 @@ def test_wesa_and_shield_carry_the_fullest_real_records(
     session = uow.session
     wesa = session.scalar(select(Vendor).where(Vendor.voen == "1003915341"))
     assert wesa is not None
-    codes = {
-        o.field_code
-        for o in session.scalars(
-            select(FieldObservation).where(FieldObservation.vendor_id == wesa.id)
-        )
-    }
-    assert len(codes) == _RAW_OBSERVATIONS_PER_VENDOR
     application = session.scalar(select(Application).where(Application.vendor_id == wesa.id))
     assert application is not None
     assert (application.computed or {}).get("cls") == "A"
+
+    # "The fullest vendor record" is the Rev4 outcome, and it lives on the application: all
+    # 24 raw indicators, frozen at the decision. Wesa's real turnover and headcount are in
+    # there and are what every screen reads.
+    snapshot = application.raw_snapshot or {}
+    assert len(snapshot) == _RAW_INDICATORS_PER_VENDOR
+    assert snapshot["B.1"] == 5189111  # avg annual turnover (3y), from the workbook
+    assert snapshot["E.1"] == 80  # permanent staff
+
+    # And *not* as field observations. Those are the application form's namespace, where
+    # `A.1` is "Full legal name" rather than "Construction licence" — writing the workbook's
+    # criterion codes into it made the portal show Wesa's legal name as `3` (ADR-021).
+    assert (
+        session.scalars(
+            select(FieldObservation).where(FieldObservation.vendor_id == wesa.id)
+        ).all()
+        == []
+    )
 
 
 def test_vendors_with_no_submission_still_score_one_via_c3_not_a2(

@@ -158,14 +158,10 @@ def load_demo(uow: UnitOfWork) -> DemoSummary:
         summary.supplier_contacts_created += int(contact_created)
 
         source = _SUPPLIER_SOURCES.get(supplier_row.get("source", ""), ObservationSource.MANUAL)
-        summary.supplier_observations_created += ensure_observations(
-            uow,
-            supplier,
-            supplier_row.get("raw", {}),
-            source=source,
-            source_ref="seed/data.json (demo suppliers)",
-            at=observed_at(supplier_row.get("updated")),
-        )
+        # As for the real vendors (ADR-021): `raw` is criterion-coded, so it is the
+        # application's raw snapshot, not the vendor's form answers. The demo layer's filled
+        # form is written separately, from form-coded data, so screens 6-12 still demonstrate
+        # a complete application.
         summary.category_assignments_created += ensure_category_assignments(
             uow, supplier, supplier_row.get("cats", []), category_by_code, confirmed=True
         )

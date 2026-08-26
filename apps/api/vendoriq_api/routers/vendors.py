@@ -13,6 +13,7 @@ from collections import OrderedDict
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Query, Response, status
+from sqlalchemy.orm import Session
 
 from ..catalog import days_to_expiry
 from ..config import Settings, get_settings
@@ -330,7 +331,7 @@ def get_vendor(
             for row in categories_service.list_for_vendor(uow.session, vendor.id)
         ],
         current_fields=profile,
-        raw_indicators=_raw_indicators(profile, vendor.type),
+        raw_indicators=_raw_indicators(uow.session, vendor, profile),
         documents=[
             document_payload(row, vendor.id)
             for row in documents_service.checklist(uow.session, vendor)
@@ -345,17 +346,33 @@ def get_vendor(
     )
 
 
-def _raw_indicators(profile: dict[str, Any], vendor_type: VendorType) -> dict[str, float | None]:
-    """Derive the scoring inputs from the current profile (packages/scoring §3).
+def _raw_indicators(
+    session: Session, vendor: VendorRow, profile: dict[str, Any]
+) -> dict[str, float | None]:
+    """The scoring inputs for this vendor: the frozen snapshot if there is one, else derived.
 
-    The engine is the only place that knows how an answer becomes an indicator, so this is
-    a call into it, not a reimplementation.
+    The engine is the only place that knows how an answer becomes an indicator, so the
+    derivation is a call into it, not a reimplementation.
+
+    The snapshot comes first, which is the precedence `services/evaluation.py`,
+    `services/intel.py` and `services/matching.py` already use and this screen did not. The
+    difference is not cosmetic for the 13 Rev4 vendors: they were scored from a spreadsheet
+    and have no form answers at all (ADR-021), so deriving from their empty profile reports
+    a register full of zeroes for vendors whose real indicators are sitting in the
+    application the commission decided.
     """
     from vendoriq_scoring import derive_raw
 
-    kind = "sup" if vendor_type is VendorType.SUP else "sub"
-    derived = derive_raw(profile, kind)  # type: ignore[arg-type]
-    return {code: (float(value) if value is not None else None) for code, value in derived.items()}
+    application = applications_service.decided_application(session, vendor.id)
+    if application is not None and application.raw_snapshot is not None:
+        derived: dict[str, Any] = dict(application.raw_snapshot)
+    else:
+        kind = "sup" if vendor.type is VendorType.SUP else "sub"
+        derived = dict(derive_raw(profile, kind))  # type: ignore[arg-type]
+    return {
+        code: (float(value) if isinstance(value, int | float) else None)
+        for code, value in derived.items()
+    }
 
 
 @router.patch("/vendors/{vendor_id}")

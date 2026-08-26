@@ -33,6 +33,7 @@ from ..models.enums import (
     VendorStatus,
     VendorType,
 )
+from . import applications as applications_service
 from . import documents as documents_service
 from . import observations as observations_service
 from . import settings_store
@@ -103,16 +104,10 @@ def _classes(session: Session, vendors: list[Vendor]) -> list[_VendorClass]:
     ]
 
 
-def _decided_application(session: Session, vendor_id: uuid.UUID) -> Application | None:
-    """The newest decided application — the same query ``services.vendors.latest_result`` runs,
-    kept here too because this module also needs the *row* (for its raw indicators and rubric
-    cells), not just the flattened score `latest_result` returns."""
-    return session.scalars(
-        select(Application)
-        .where(Application.vendor_id == vendor_id, Application.decided_at.is_not(None))
-        .order_by(Application.decided_at.desc())
-        .limit(1)
-    ).first()
+#: The newest decided application. Was a private copy here; four modules needed the same
+#: query and the same "prefer the frozen snapshot" rule, and one of them had drifted, so it
+#: lives in `services/applications.py` now (ADR-021).
+_decided_application = applications_service.decided_application
 
 
 def _raw_for_decided(session: Session, vendor: Vendor) -> dict[str, Any] | None:

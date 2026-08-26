@@ -126,14 +126,18 @@ def load_real(uow: UnitOfWork, *, settings: Settings) -> RealSummary:
         )
         summary.contacts_created += int(contact_created)
 
-        summary.observations_created += ensure_observations(
-            uow,
-            vendor,
-            row["raw"],
-            source=ObservationSource.EXCEL,
-            source_ref=DATA_JSON_SOURCE_REF,
-            at=observed_at(row.get("updated")),
-        )
+        # `row["raw"]` is NOT written as field observations, and that is the fix of ADR-021.
+        # It is the Rev4 workbook's raw indicators, keyed by `sub-4`'s 24 criterion codes.
+        # The observation store holds the application form's 92 codes, which use the same
+        # alphabet for different questions — criterion `A.1` is "Construction licence", form
+        # `A.1` is "Full legal name". Writing one into the other made the portal answer
+        # "Full legal name" with `3` and left `derive_raw` finding nothing where it looked.
+        #
+        # Nothing is lost by not writing them: they are stored, unchanged, as the
+        # application's `raw_snapshot` a few lines below — which is where every reader
+        # (evaluation, market intelligence, the vendor register) already prefers to find
+        # them. Uni Ko never collected these vendors' form answers; they were scored from a
+        # spreadsheet, so the form genuinely has no answers and stays empty (brief §1.10).
 
         # Fail loudly before any application row is written (brief §1.10).
         _assert_matches_sheet(row, score(model, row["raw"]))
