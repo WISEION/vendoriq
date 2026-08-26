@@ -201,14 +201,13 @@ commission graded it B.
 import hmac, time
 from hashlib import sha256
 
+
 def verify(secret: str, header: str, raw_body: bytes, tolerance: int = 300) -> bool:
     parts = dict(part.split("=", 1) for part in header.split(","))
     timestamp = int(parts["t"])
     if abs(time.time() - timestamp) > tolerance:
-        return False                                   # replay
-    expected = hmac.new(
-        secret.encode(), f"{timestamp}.".encode() + raw_body, sha256
-    ).hexdigest()
+        return False  # replay
+    expected = hmac.new(secret.encode(), f"{timestamp}.".encode() + raw_body, sha256).hexdigest()
     return hmac.compare_digest(expected, parts["v1"])
 ```
 

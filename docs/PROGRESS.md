@@ -2,14 +2,33 @@
 
 Updated: 2026-08-26 · branch `claude/vendoriq-orchestration-7ls8e6`
 
-## Phase 3 — in progress
+## Gate 3 — PASSED
+
+| Criterion (brief §7) | Evidence |
+|---|---|
+| 7.1 `docker compose up`; prod profile + Caddy TLS runbook | Config asserted by `test_compose_profiles.py` (production and live auth pinned, Caddy the only published service, refusal on a missing secret); `docs/RUNBOOK.md`. **Containers never started — no Docker daemon here.** |
+| 7.2 pytest, coverage ≥ 80 % | **1102 passed, 0 xfailed**; Rev4 fixture 17/17; coverage **95 %** |
+| 7.3 Playwright journeys + 68 screenshots | **80 passed**; 68 files, 34 slugs × AZ/EN, all distinct; journeys assert 90.3/A, 94.7/A, 96 % |
+| 7.4 OpenAPI at `/api/docs`; integration guide | 200; contract served verbatim; 103/103 operations requested from a test |
+| 7.5 No business logic in the frontend; no untranslated keys | lint rule mutation-tested; i18n test now compares to the contract, not dictionary-to-dictionary |
+| 7.6 `make purge-demo`, `make seed` idempotent | 8 tests, third consecutive run changes nothing |
+| 7.7 CI green; pushed; report | **All five checks green.** Pushed to the run's branch; merging to `main` is the owner's call. `docs/REPORT.md` complete. |
+
+Phase 3 found more than phases 1 and 2 of my own checking did: 5 defects from 3A, 9 from 3B,
+all fixed. The one that mattered most — two code namespaces sharing an alphabet — was
+invisible to 1102 tests because every one of them agreed with the mistake.
+
+Three of my own defects reached CI because a local check was *nearly* the CI check. `make ci`
+now runs CI's steps in CI's order.
+
+## Phase 3 — complete
 
 | Task | Owner | State |
 |---|---|---|
-| 3A Playwright journeys + 68 screenshots | worker | running |
-| 3B adversarial security / integrity / i18n review | worker (Opus) | running |
-| 3C production profile, backup and restore, runbook | orchestrator | **done** — commit `76f28d4` |
-| 3D final report | orchestrator | drafted; completed at Gate 3 |
+| 3A Playwright journeys + 68 screenshots | worker | done — 80 tests, 5 defects reported |
+| 3B adversarial security / integrity / i18n review | worker (Opus) | done — 9 findings, all fixed |
+| 3C production profile, backup and restore, runbook | orchestrator | done |
+| 3D final report | orchestrator | done |
 
 **3C found two real defects by reading rather than running.** The prod profile could be started
 with every development default in place — `AUTH_MODE=test` on a public hostname seeds the
