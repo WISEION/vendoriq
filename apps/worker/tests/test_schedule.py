@@ -1,8 +1,12 @@
-"""The scheduler skeleton and the one job with a body (brief §2G, spec §6.6).
+"""The scheduler skeleton (brief §2G, spec §6.6).
 
-Phase 1C ships the registry, the APScheduler wiring and a working stale-profile scan. The
-notifying jobs are deliberate no-ops that log — a job that silently does nothing is worse
-than one that says so — and the tests assert that shape rather than pretending otherwise.
+Phase 1C shipped the registry, the APScheduler wiring and a working stale-profile scan, with
+the other three jobs as deliberate no-ops that logged the phase that would fill them. Phase
+2G gives ``expiry_reminders``, ``adapter_pulls`` and ``prequalification_expiry`` real bodies
+— see ``test_expiry_reminders.py``, ``test_adapter_pulls.py`` and
+``test_prequalification_expiry.py`` for their behaviour. What stays here is the schedule
+itself: keys, cron expressions, the scheduler wiring, ``--once`` — the shape that does not
+change no matter which job body is behind it.
 """
 
 from __future__ import annotations
@@ -56,28 +60,6 @@ def test_the_stale_profile_scan_reports_counts(caplog: pytest.LogCaptureFixture)
     assert any("vendor(s) stale" in message for message in messages)
 
 
-def test_the_expiry_reminder_job_selects_but_does_not_send(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    with caplog.at_level(logging.INFO, logger="vendoriq.worker"):
-        jobs.expiry_reminders()
-    message = " ".join(record.getMessage() for record in caplog.records)
-    assert "expiry_reminders" in message
-    assert "phase 2G" in message
-
-
-@pytest.mark.parametrize("key", ["adapter_pulls", "prequalification_expiry"])
-def test_the_deferred_jobs_log_that_they_are_deferred(
-    key: str, caplog: pytest.LogCaptureFixture
-) -> None:
-    """No-ops, but loud ones: the run is visible in the log with the phase that fills it."""
-    with caplog.at_level(logging.INFO, logger="vendoriq.worker"):
-        jobs.JOBS_BY_KEY[key].run()
-    message = " ".join(record.getMessage() for record in caplog.records)
-    assert key in message
-    assert "phase" in message
-
-
 def test_run_once_dispatches_a_known_job(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.INFO, logger="vendoriq.worker"):
         assert main.run_once("adapter_pulls") == 0
@@ -104,12 +86,20 @@ def test_the_jobs_import_the_api_rather_than_reimplementing_it() -> None:
     assert "from vendoriq_api" in text
     for smell in ("sqlalchemy.text(", 'text("SELECT', "cursor.execute"):
         assert smell not in text, smell
-    for service in ("observations.stale_field_codes", "settings_store.freshness_windows"):
+    for service in (
+        "observations.stale_field_codes",
+        "settings_store.freshness_windows",
+        "documents.expiring",
+        "notifications.notify_document_expiring",
+        "notifications.notify_prequalification_lapsing",
+        "run_sync",
+    ):
         assert service in text, service
 
 
-def test_no_job_body_raises_not_implemented(caplog: pytest.LogCaptureFixture) -> None:
-    """Phase 0 left them raising; a scheduled job that raises floods the log with tracebacks."""
+def test_no_job_body_raises(caplog: pytest.LogCaptureFixture) -> None:
+    """A scheduled job that raises floods the log with tracebacks — none of them may, even
+    against an empty database (nothing configured, nothing due, nothing to warn about)."""
     with caplog.at_level(logging.INFO, logger="vendoriq.worker"):
         for job in jobs.JOBS:
             job.run()

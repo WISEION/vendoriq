@@ -1,0 +1,316 @@
+/*
+ * Categories, users & roles, settings and the audit log (screens 31–34).
+ *
+ * Scoped to this feature: every selector is prefixed `adm-` so it cannot collide with
+ * another feature's stylesheet built in the same tree, and it never touches a bare element
+ * selector or `.card` / `.field` / `.btn-primary` / `.form-error` — the shared classes
+ * `theme/global.css` already owns. Colours and shape come from `theme/tokens.css`, never a
+ * literal value, so both themes (light/dark) stay in sync automatically.
+ */
+
+.adm-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.adm-toolbar select,
+.adm-toolbar input {
+  padding: 8px 10px;
+  border-radius: var(--r-ctl);
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+}
+
+.adm-toolbar-spacer {
+  flex: 1 1 auto;
+}
+
+.adm-search {
+  min-width: 200px;
+}
+
+.adm-inline-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.adm-inline-field input {
+  padding: 7px 8px;
+  border-radius: var(--r-ctl);
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+}
+
+.adm-seg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  overflow: hidden;
+}
+
+.adm-seg-btn {
+  padding: 7px 14px;
+  border: none;
+  background: var(--card);
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+}
+
+.adm-seg-btn + .adm-seg-btn {
+  border-left: 1px solid var(--line);
+}
+
+.adm-seg-btn[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.adm-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.adm-checkbox input {
+  width: 16px;
+  height: 16px;
+}
+
+.adm-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow);
+  margin-bottom: 16px;
+}
+
+.adm-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: var(--card-pad);
+  border-bottom: 1px solid var(--line-2);
+}
+
+.adm-card-title {
+  margin: 0 0 4px;
+  font-family: var(--fh);
+  font-size: 16px;
+}
+
+.adm-card-body {
+  padding: var(--card-pad);
+}
+
+.adm-note {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 4px 0 12px;
+}
+
+.adm-table-wrap {
+  overflow-x: auto;
+}
+
+.adm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.adm-table th,
+.adm-table td {
+  padding: var(--row-pad) 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--line-2);
+  vertical-align: top;
+}
+
+.adm-table th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.adm-table td.adm-r,
+.adm-table th.adm-r {
+  text-align: right;
+}
+
+.adm-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.adm-nowrap {
+  white-space: nowrap;
+}
+
+.adm-entity-id {
+  font-size: 11px;
+  font-family: var(--fm);
+  word-break: break-all;
+}
+
+.adm-empty {
+  padding: 32px var(--card-pad);
+  text-align: center;
+  color: var(--muted);
+}
+
+.adm-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.adm-you {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.adm-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.adm-pill-good {
+  background: var(--good-soft);
+  color: var(--good);
+}
+
+.adm-pill-mute {
+  background: var(--line-2);
+  color: var(--muted);
+}
+
+.adm-image {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  font-family: var(--fm);
+  max-width: 320px;
+}
+
+.adm-image li {
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+.adm-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.adm-form-grid .field {
+  margin: 0;
+}
+
+.adm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.adm-fieldset {
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.adm-fieldset:disabled {
+  opacity: 0.75;
+}
+
+.adm-alert {
+  padding: 10px 14px;
+  border-radius: var(--r-ctl);
+  border: 1px solid var(--line);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+.adm-mono-block {
+  display: block;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: var(--r-ctl);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  font-family: var(--fm);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.adm-pager {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px var(--card-pad);
+  border-top: 1px solid var(--line-2);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.adm-legend {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--card);
+}
+
+.adm-legend summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.adm-legend dl {
+  margin: 12px 0 0;
+  display: grid;
+  gap: 10px;
+}
+
+.adm-legend-row dt {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.adm-legend-row dd {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
