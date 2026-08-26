@@ -65,11 +65,16 @@ driver", which is an ADR-001 decision. ADR-015.
 
 ### 1.5 Not verifiable on this host
 
-* **`docker compose up` has never been run.** No Docker daemon exists here (brief §9). The
-  compose file is checked for YAML validity and profile membership, the images' contents are
-  checked by reading, and two real defects were found and fixed that way — the stack came up
-  with an empty database, and the API image did not contain the file the seed reads. Whether
-  it actually starts remains **unverified**.
+* **`docker compose up` has never been run.** No Docker daemon exists here (brief §9). What
+  could be checked without one was: the rendered configuration (`docker compose config` parses
+  and interpolates locally, so `test_compose_profiles.py` asserts what the production stack
+  actually comes out as — pinned to production and live auth, Caddy the only service
+  publishing a port, and a refusal when a secret is missing), the images' contents by reading,
+  and the restore script's refusals. Three real defects were found that way: the stack came up
+  with an empty database, the API image did not contain the file the seed reads, and a live
+  stack had no user who could sign in (ADR-019). Whether the containers **start** remains
+  unverified, and so do `pg_restore`, `mc mirror` and ACME issuance. `docs/RUNBOOK.md` opens
+  by saying so.
 * **Real 1C / SAP / Odoo connectivity, real government registries, SSO, WhatsApp,
   e-tendering** — explicit non-goals (brief §8). Each has an interface or a stub.
 
@@ -100,11 +105,13 @@ driver", which is an ADR-001 decision. ADR-015.
 
 ## 3. Decisions
 
-Eighteen ADRs in `docs/DECISIONS.md`. The ones that change behaviour a reader would notice:
+Twenty ADRs in `docs/DECISIONS.md`. The ones that change behaviour a reader would notice:
 ADR-008 (engineers exclude technicians), ADR-009 and ADR-011 (certificates resolve against the
 vendor's own model, and one with no criterion is not held), ADR-013 (the rail is built from the
 server's permission list, never a copy of it), ADR-014 and ADR-017 (`status` and `is_locked` are
-different questions), ADR-018 (the demo layer must demonstrate something).
+different questions), ADR-018 (the demo layer must demonstrate something), ADR-019 and ADR-020 (a production stack
+starts with no users and needs a way to get its first one; its overlay makes the development
+defaults impossible rather than merely discouraged).
 
 ---
 

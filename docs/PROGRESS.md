@@ -2,6 +2,27 @@
 
 Updated: 2026-08-26 · branch `claude/vendoriq-orchestration-7ls8e6`
 
+## Phase 3 — in progress
+
+| Task | Owner | State |
+|---|---|---|
+| 3A Playwright journeys + 68 screenshots | worker | running |
+| 3B adversarial security / integrity / i18n review | worker (Opus) | running |
+| 3C production profile, backup and restore, runbook | orchestrator | **done** — commit `76f28d4` |
+| 3D final report | orchestrator | drafted; completed at Gate 3 |
+
+**3C found two real defects by reading rather than running.** The prod profile could be started
+with every development default in place — `AUTH_MODE=test` on a public hostname seeds the
+published accounts and reveals sign-in codes — so `infra/docker-compose.prod.yml` now pins the
+production values and makes the rest `${VAR:?…}`, which stops `docker compose` from rendering a
+configuration at all while one is missing (ADR-020). And a live stack had **no user who could
+sign in**: `AUTH_MODE=live` seeds nothing, correctly, and every screen is behind the sign-in, so
+there was no first move. `seed create-admin` is that move (ADR-019).
+
+`docker compose config` parses and interpolates without a daemon, so both claims are asserted by
+a test rather than described in the runbook. What the containers do when started is still
+unverified, and `docs/RUNBOOK.md` opens by saying which parts those are.
+
 ## Gate 2 — PASSED
 
 | Criterion (brief §4.2) | Evidence |
