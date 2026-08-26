@@ -64,6 +64,12 @@ class Settings(BaseSettings):
     #: Largest accepted document, in bytes. PDF only (spec §7).
     upload_max_bytes: int = 20 * 1024 * 1024
     s3_endpoint_url: str | None = None
+    #: Where a *browser* reaches the same S3 API. Inside compose the API talks to
+    #: ``http://minio:9000``, but a pre-signed URL bearing that hostname is useless outside
+    #: the compose network — the signature covers host and path, so the URL must be minted
+    #: against the address the client will actually use. Unset means "same as
+    #: ``s3_endpoint_url``", which is right for native dev and for a real AWS endpoint.
+    s3_public_endpoint_url: str | None = None
     s3_bucket: str = "vendoriq"
     s3_access_key: str | None = None
     s3_secret_key: str | None = None

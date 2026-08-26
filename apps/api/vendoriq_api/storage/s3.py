@@ -37,6 +37,7 @@ class S3Storage(Storage):
         access_key: str | None,
         secret_key: str | None,
         region: str,
+        public_endpoint_url: str | None = None,
     ) -> None:
         if not BOTO3_AVAILABLE:
             raise StorageNotConfiguredError(
@@ -48,16 +49,27 @@ class S3Storage(Storage):
                 "STORAGE_BACKEND=s3 needs S3_ACCESS_KEY and S3_SECRET_KEY."
             )
         self._bucket = bucket
-        self._client: Any = boto3.client(
-            "s3",
-            endpoint_url=endpoint_url,
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-            region_name=region,
+
+        def _client_for(endpoint: str | None) -> Any:
+            return boto3.client(
+                "s3",
+                endpoint_url=endpoint,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                region_name=region,
+            )
+
+        self._client: Any = _client_for(endpoint_url)
+        # Pre-signed URLs are minted against the address the *browser* will use. A signature
+        # covers host and path, so signing against the internal service name and rewriting
+        # the host afterwards would just be a well-formed 403 (found live: the compose stack
+        # handed clients `http://minio:9000/...`, unreachable from outside the network).
+        self._signing_client: Any = (
+            _client_for(public_endpoint_url) if public_endpoint_url else self._client
         )
 
     def upload_url(self, key: str, *, content_type: str, ttl_seconds: int) -> SignedUrl:
-        url = self._client.generate_presigned_url(
+        url = self._signing_client.generate_presigned_url(
             "put_object",
             Params={"Bucket": self._bucket, "Key": key, "ContentType": content_type},
             ExpiresIn=ttl_seconds,
@@ -73,7 +85,7 @@ class S3Storage(Storage):
         params: dict[str, Any] = {"Bucket": self._bucket, "Key": key}
         if filename:
             params["ResponseContentDisposition"] = f'attachment; filename="{filename}"'
-        url = self._client.generate_presigned_url(
+        url = self._signing_client.generate_presigned_url(
             "get_object", Params=params, ExpiresIn=ttl_seconds
         )
         return SignedUrl(

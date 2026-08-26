@@ -47,6 +47,7 @@ PROD_ENV = {
     "SMTP_HOST": "smtp.example.az",
     "SMTP_FROM": "noreply@example.az",
     "DOMAIN": "vendoriq.example.az",
+    "S3_PUBLIC_ENDPOINT_URL": "https://s3.vendoriq.example.az",
     "TLS_DIRECTIVE": "tls ops@example.az",
 }
 
@@ -101,6 +102,37 @@ def test_the_seed_service_is_not_in_the_production_profile() -> None:
     assert _load(BASE)["services"]["seed"]["profiles"] == ["dev"]
 
 
+def test_the_bucket_init_step_runs_in_both_profiles() -> None:
+    """S3 buckets are not self-creating; without this the first upload dies NoSuchBucket.
+
+    Found by running the stack, not by reading it — the dev profile came up healthy, served
+    the app, signed a perfectly valid upload ticket, and the PUT against it 404ed.
+    """
+    services = _load(BASE)["services"]
+    assert set(services["minio-init"]["profiles"]) == {"dev", "prod"}
+    assert "mc mb --ignore-existing" in services["minio-init"]["entrypoint"]
+    assert (
+        services["api"]["depends_on"]["minio-init"]["condition"] == "service_completed_successfully"
+    )
+
+
+def test_the_api_env_pins_s3_and_carries_a_public_endpoint() -> None:
+    """Two more findings from the live run, kept fixed.
+
+    `STORAGE_BACKEND` defaulted from .env — where .env.example says `local` for native dev —
+    so the compose stack silently stored documents inside the api container while MinIO
+    idled. And pre-signed URLs were minted against `minio:9000`, a name only resolvable
+    inside the compose network, so a browser's upload died on the first PUT.
+    """
+    compose = _load(BASE)
+    env = compose["x-api-env"]
+    assert env["STORAGE_BACKEND"] == "s3"
+    assert "S3_PUBLIC_ENDPOINT_URL" in env
+
+    prod_env = _load(PROD)["x-prod-api-env"]
+    assert ":?" in prod_env["S3_PUBLIC_ENDPOINT_URL"]
+
+
 # ── the same claims, as docker compose actually renders them ────────────────────────────
 
 pytestmark_cli = pytest.mark.skipif(
@@ -113,6 +145,8 @@ def _render(env: dict[str, str]) -> subprocess.CompletedProcess[str]:
         [
             "docker",
             "compose",
+            "--env-file",
+            os.devnull,
             "-f",
             str(BASE),
             "-f",
@@ -123,8 +157,10 @@ def _render(env: dict[str, str]) -> subprocess.CompletedProcess[str]:
             "--format",
             "json",
         ],
-        # A clean environment: `docker compose` reads `infra/.env` from the project directory,
-        # and an operator's own file must not be able to make this test pass.
+        # A clean environment twice over: the env dict controls the process environment, and
+        # `--env-file /dev/null` stops compose reading `infra/.env` from the project
+        # directory — which it otherwise does, and which made this test silently pass on any
+        # machine whose operator had filled that file in (this machine, eventually).
         cwd=INFRA,
         env={"PATH": os.environ.get("PATH", ""), "HOME": os.environ.get("HOME", ""), **env},
         capture_output=True,

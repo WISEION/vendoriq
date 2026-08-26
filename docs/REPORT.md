@@ -67,16 +67,20 @@ driver", which is an ADR-001 decision. ADR-015.
 
 ### 1.5 Not verifiable on this host
 
-* **`docker compose up` has never been run.** No Docker daemon exists here (brief §9). What
-  could be checked without one was: the rendered configuration (`docker compose config` parses
-  and interpolates locally, so `test_compose_profiles.py` asserts what the production stack
-  actually comes out as — pinned to production and live auth, Caddy the only service
-  publishing a port, and a refusal when a secret is missing), the images' contents by reading,
-  and the restore script's refusals. Three real defects were found that way: the stack came up
-  with an empty database, the API image did not contain the file the seed reads, and a live
-  stack had no user who could sign in (ADR-019). Whether the containers **start** remains
-  unverified, and so do `pg_restore`, `mc mirror` and ACME issuance. `docs/RUNBOOK.md` opens
-  by saying so.
+* **The compose stack has now been run for real, and running it found what reading could
+  not.** A Docker daemon became available late in the build; both profiles were brought up
+  and exercised end to end — the seeded app through Caddy, a document uploaded from outside
+  the network via pre-signed URL and downloaded back byte-for-byte, a full backup/restore
+  cycle (a purged demo layer restored from the dump), and the prod profile pinned to
+  `production`/`live` with only Caddy published. **Eight runtime defects surfaced, every one
+  invisible to 1100+ tests and a green Docker-build check** — among them: the images
+  installed no workspace dependencies at all (`uv sync` without `--all-packages`; the API
+  died at `alembic: not found` on first start), the S3 extra was never installed, nothing
+  created the MinIO bucket, and pre-signed URLs carried the internal `minio:9000` hostname
+  no browser can resolve. All fixed with regression tests; ADR-024 is the full list. Still
+  unverified on this host: **ACME issuance** (no public DNS; the rehearsal used
+  `tls internal`) and **delivery through a real SMTP relay** — the runbook flags both for
+  the first deployment.
 * **Real 1C / SAP / Odoo connectivity, real government registries, SSO, WhatsApp,
   e-tendering** — explicit non-goals (brief §8). Each has an interface or a stub.
 

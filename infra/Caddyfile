@@ -28,3 +28,10 @@
 		reverse_proxy web:80
 	}
 }
+
+# Pre-signed document URLs. The path (bucket/key) must reach MinIO unchanged — a SigV4
+# signature covers it — so this is a whole separate site, not a sub-path of the app.
+s3.{$DOMAIN} {
+	{$TLS_DIRECTIVE}
+	reverse_proxy minio:9000
+}

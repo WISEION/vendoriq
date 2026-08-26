@@ -21,16 +21,15 @@ from pathlib import Path
 import pytest
 
 INFRA = Path(__file__).resolve().parents[3] / "infra"
-DOCKERFILES = sorted(INFRA.glob("Dockerfile.*"))
+#: The canonical three, by name — a glob also swept up the `.sandbox` variants a
+#: TLS-intercepted build host generates for itself, which are neither committed nor CI's.
+DOCKERFILES = [INFRA / name for name in ("Dockerfile.api", "Dockerfile.worker", "Dockerfile.web")]
 
 
 def test_there_are_dockerfiles_to_check() -> None:
-    """Guards against the glob silently matching nothing after a rename."""
-    assert {path.name for path in DOCKERFILES} == {
-        "Dockerfile.api",
-        "Dockerfile.worker",
-        "Dockerfile.web",
-    }
+    """Guards against a rename silently emptying the list."""
+    for path in DOCKERFILES:
+        assert path.is_file(), path
 
 
 @pytest.mark.parametrize("dockerfile", DOCKERFILES, ids=lambda path: path.name)
@@ -50,6 +49,12 @@ def test_every_install_is_locked(dockerfile: Path) -> None:
             continue
         if "uv sync" in line:
             assert "--frozen" in line, f"{dockerfile.name}: {line.strip()}"
+            # Without --all-packages a workspace root sync installs no member's
+            # dependencies: the image built green in CI and died at `alembic: not found`
+            # the first time a container actually started. --all-extras is boto3 —
+            # STORAGE_BACKEND=s3 is what the compose stack runs.
+            assert "--all-packages" in line, f"{dockerfile.name}: {line.strip()}"
+            assert "--all-extras" in line, f"{dockerfile.name}: {line.strip()}"
         # `npm install` resolves; `npm ci` installs the lock file and fails if it cannot.
         assert "npm install" not in line, f"{dockerfile.name}: {line.strip()}"
 

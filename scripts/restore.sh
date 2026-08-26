@@ -39,18 +39,22 @@ cd "$REPO_ROOT/infra"
 # `docker compose` reads infra/.env for POSTGRES_USER and the rest; so do we, for the values
 # the helper containers need. An `&&` chain here would be a trap: under `set -e` a false test
 # is a failed statement, so a host without an .env file would exit before doing any work.
+# Read .env as compose does — KEY=VALUE pairs, comments skipped — NOT by sourcing it.
+# Sourcing executes the file as shell, and the first unquoted value with a space in it
+# (`TLS_DIRECTIVE=tls internal`, straight from .env.example) becomes a command invocation.
+# Found by running, like everything else in this file's history.
 if [[ -f .env ]]; then
-	set -a
-	# shellcheck disable=SC1091  # deployment-local, not in the repository
-	. ./.env
-	set +a
+	while IFS= read -r line; do
+		[[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] || continue
+		export "${line?}"
+	done <.env
 fi
 POSTGRES_USER="${POSTGRES_USER:-vendoriq}"
 POSTGRES_DB="${POSTGRES_DB:-vendoriq}"
 S3_BUCKET="${S3_BUCKET:-vendoriq}"
 
 snapshot_revision="$(sed -n 's/^alembic_revision=//p' "$snapshot/manifest.txt")"
-running_revision="$(docker compose exec -T api alembic current 2>/dev/null | grep -oE '^[0-9a-f]+' | head -1 || true)"
+running_revision="$(docker compose exec -T api alembic current 2>/dev/null </dev/null | grep -oE '^[0-9a-f]+' | head -1 || true)"
 if [[ "$force" != "--force" && -n "$running_revision" && "$snapshot_revision" != "$running_revision" ]]; then
 	cat >&2 <<-MESSAGE
 		schema mismatch — refusing to restore.

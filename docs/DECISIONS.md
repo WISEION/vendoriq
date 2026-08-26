@@ -782,3 +782,66 @@ real filled form instead of an empty one — with real data, which is better tha
 application ADR-021 proposed and better than fabricating answers for a vendor. The other
 twelve keep empty forms, correctly. And ADR-021's sentence about all thirteen should be read
 as it now stands: twelve were scored from a spreadsheet alone; the thirteenth was not.
+
+## ADR-024 — The compose stack was finally run, and running it found eight defects reading could not
+
+**Context.** Brief §9 said no Docker daemon exists on the build host, so §7.1 was verified by
+reading: YAML assertions, `docker compose config` renders, image contents by inspection. The
+report said plainly that whether the containers *start* was unknown. Late in the build the
+host turned out to be a Firecracker microVM with the full Docker toolchain installed — only
+the daemon wasn't running. Started with `overlay2`, a registry mirror for blocked CDNs, and
+sandbox-only Dockerfile variants whose sole deltas are trusting this host's TLS-intercepting
+egress CA and sourcing `uv` from PyPI (ghcr blobs are policy-blocked). The canonical
+Dockerfiles stay exactly what CI builds.
+
+**What running found.** Eight defects, none visible to 1100+ tests, a green Docker-build
+check, or any amount of reading:
+
+1. **The images installed no workspace dependencies at all.** `uv sync --frozen --no-dev` at
+   a workspace root syncs the *root project only*; every member's dependencies — FastAPI,
+   SQLAlchemy, alembic, all of it — were simply absent. The image built green everywhere and
+   died at `alembic: not found` the first time a container started. Fix: `--all-packages`,
+   both sync layers, both images.
+2. **`STORAGE_BACKEND` defaulted from `.env`.** `.env.example` says `local` (right for a
+   native run); compose read the same file and quietly switched the whole stack to files
+   inside the api container — no volume, gone on recreate — while MinIO idled. Fix: compose
+   pins `s3`; that is what MinIO is in the stack *for*.
+3. **`vendoriq-api[s3]` was never installed**, so the stack whose storage is MinIO shipped an
+   API that raised `StorageNotConfiguredError` on the first upload. Fix: `--all-extras`.
+4. **Nothing created the bucket.** The stack came up healthy, signed a perfectly valid upload
+   ticket, and the PUT against it died `NoSuchBucket`. Fix: a `minio-init` one-shot
+   (`mc mb --ignore-existing`) in both profiles, with the api gated on its completion.
+5. **Pre-signed URLs carried `http://minio:9000`** — the internal service name, unreachable
+   from any browser. A signature covers host and path, so rewriting after signing is just a
+   well-formed 403. Fix: `S3_PUBLIC_ENDPOINT_URL` and a second boto3 signing client; dev
+   publishes the S3 port, prod serves `s3.{DOMAIN}` via Caddy (a separate site block —
+   a sub-path cannot work, the path is signed too).
+6. **`backup.sh`/`restore.sh` executed `.env` instead of reading it.** `set -a; . ./.env`
+   makes `TLS_DIRECTIVE=tls internal` — verbatim from `.env.example` — a command invocation.
+   Compose parses the same file happily; shells do not. Fix: read `KEY=VALUE` pairs, never
+   source.
+7. **`docker compose exec -T` ate the confirmation stdin in `restore.sh`** — `-T` disables
+   the TTY but still pipes stdin into the container, so the revision check consumed the line
+   the `read` was waiting for and `set -e` killed the script after printing the manifest.
+   Looked exactly like a restore; restored nothing. Fix: `</dev/null` on the check.
+8. **An unreachable SMTP relay turned "send me a code" into a raw 500** with a traceback per
+   attempt. Operational conditions deserve envelopes: now a 503 `mail_unavailable`.
+
+Plus one defect in a *test*: the compose-render check that proves `SESSION_SECRET` is
+required silently passed on any machine with a filled-in `infra/.env`, because compose reads
+that file regardless of the process environment — the exact hole its docstring claimed to
+close. `--env-file /dev/null` closes it in fact.
+
+**Verified end to end on this host:** dev profile up with seeded data through Caddy; document
+upload from outside the network via pre-signed URL and byte-identical download; idempotent
+`minio-init`; `make backup` (real `pg_dump` + `mc mirror`, manifest at revision 0005);
+`make restore` bringing a purged demo layer back; prod profile up pinned to
+`production`/`live`, only Caddy published, seed absent, OTP failing *cleanly* against a dead
+relay. **Still unverified:** ACME issuance (no public DNS here; the rehearsal used
+`tls internal`) and real SMTP delivery. The runbook names both.
+
+**The lesson, stated once more.** This build now has three tiers of the same failure: checks
+that were nearly CI (ruff-from-PATH, `tsc --noEmit`), tests that asserted nothing where it
+mattered (`_env_file=None`, the `.env` render hole), and a green build check for images that
+could not run. Each tier looked like verification and was weaker than it looked. The only
+check that finds a runtime defect is running.
