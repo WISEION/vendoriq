@@ -196,3 +196,71 @@ def purge_test_accounts(uow: UnitOfWork) -> int:
         removed += 1
     uow.flush()
     return removed
+
+
+class AccountExistsError(Exception):
+    """Raised when ``create_staff_account`` is asked to create an account twice."""
+
+
+#: Short passwords are the ones that get brute-forced; this is the only rule, because a rule
+#: nobody can satisfy without a generator is a rule that produces `Admin!2026` everywhere.
+MINIMUM_PASSWORD_LENGTH = 12
+
+
+def create_staff_account(
+    uow: UnitOfWork,
+    *,
+    email: str,
+    full_name: str,
+    role: UserRole,
+    password: str,
+) -> tuple[User, str]:
+    """Create one real staff account, and return it with its TOTP provisioning URI.
+
+    This is how a production system gets its first administrator. ``AUTH_MODE=live`` seeds
+    nothing — deliberately, since seeding accounts into a live system is exactly what
+    ``create_test_accounts`` refuses to do — which leaves a freshly deployed stack with no
+    user who can sign in to create the second one. That is a real dead end, not a
+    theoretical one, and this is the way out of it: run once, by hand, by whoever deployed.
+
+    The TOTP secret is returned here and printed once by the CLI. It is not retrievable
+    afterwards through any endpoint, so an operator who loses it enrols again from scratch.
+
+    Refuses an e-mail that already exists rather than resetting its password: a command that
+    silently takes over an existing account is a privilege-escalation tool for anyone who
+    can reach the container.
+    """
+    if role is UserRole.VENDOR:
+        raise ValueError("Vendor accounts belong to a vendor and sign in with a one-time code.")
+    if len(password) < MINIMUM_PASSWORD_LENGTH:
+        raise ValueError(f"Password must be at least {MINIMUM_PASSWORD_LENGTH} characters.")
+
+    email = email.strip().lower()
+    if uow.session.scalar(select(User).where(User.email == email)) is not None:
+        raise AccountExistsError(
+            f"{email} already exists. Change its role or password through the admin screens, "
+            "or use a different address."
+        )
+
+    user = User(
+        email=email,
+        full_name=full_name,
+        role=role,
+        password_hash=hashing.hash_password(password),
+        totp_secret=totp_module.generate_secret(),
+        is_active=True,
+        is_demo=False,
+    )
+    uow.session.add(user)
+    uow.flush()
+
+    audit.record(
+        uow,
+        entity_type="app_user",
+        entity_id=user.id,
+        action="create",
+        after={"email": user.email, "role": user.role.value, "source": "cli"},
+    )
+    logger.info("created %s account %s", user.role.value, user.email)
+    assert user.totp_secret is not None  # set above; narrows for mypy
+    return user, totp_module.provisioning_uri(user.totp_secret, user.email)

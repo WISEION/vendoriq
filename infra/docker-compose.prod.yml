@@ -1,0 +1,62 @@
+# Production overlay. Layered on top of docker-compose.yml, never used alone:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile prod up -d
+#
+# Its entire job is to make the unsafe defaults impossible. The base file defaults
+# APP_ENV to development, AUTH_MODE to test and every password to a word anybody can read
+# in this repository — right for a laptop, catastrophic on a public hostname. Those
+# defaults do not become dangerous by being wrong; they become dangerous by being silent.
+# So this file replaces each of them with either a fixed production value or the
+# `${VAR:?...}` form, which makes `docker compose` refuse to render a configuration at all
+# until the operator has supplied a real one. Nothing here can be forgotten into place.
+#
+# The API's own guard (config.py: AUTH_MODE=test is refused when APP_ENV=production) is the
+# second half of the same pair: this file guarantees APP_ENV=production reaches the
+# container, and the container then refuses to serve test accounts under it.
+
+x-prod-api-env: &prod-api-env
+  APP_ENV: production
+  AUTH_MODE: live
+  SESSION_SECRET: ${SESSION_SECRET:?generate one - openssl rand -hex 32}
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?set POSTGRES_USER}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:?set POSTGRES_DB}
+  STORAGE_BACKEND: s3
+  S3_ENDPOINT_URL: http://minio:9000
+  S3_BUCKET: ${S3_BUCKET:-vendoriq}
+  S3_ACCESS_KEY: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER}
+  S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD}
+  # With SMTP_HOST empty the API logs mail instead of sending it. In production that would
+  # mean sign-in codes silently never arrive, so the host is required rather than defaulted.
+  SMTP_HOST: ${SMTP_HOST:?set SMTP_HOST - without it sign-in codes are never delivered}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_FROM: ${SMTP_FROM:?set SMTP_FROM}
+  DEFAULT_LOCALE: ${DEFAULT_LOCALE:-az}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+services:
+  db:
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+
+  minio:
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD}
+
+  api:
+    environment: *prod-api-env
+
+  worker:
+    environment: *prod-api-env
+
+  caddy:
+    environment:
+      # The hostname on the certificate. Caddy serves nothing else, so a wrong value here is
+      # a 404 for every request rather than a certificate for the wrong name.
+      DOMAIN: ${DOMAIN:?set DOMAIN - the public hostname, e.g. vendoriq.uniko.az}
+      # "tls ops@example.az" obtains and renews a Let's Encrypt certificate automatically.
+      # "tls /etc/caddy/cert.pem /etc/caddy/key.pem" uses certificates you mount yourself.
+      TLS_DIRECTIVE: ${TLS_DIRECTIVE:?set TLS_DIRECTIVE - e.g. "tls ops@example.az" for ACME}

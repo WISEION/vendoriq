@@ -20,7 +20,13 @@ TEST_DB_URL ?= postgresql+psycopg://vendoriq:vendoriq@localhost:5432/vendoriq_te
 API_PORT  ?= 8000
 WEB_PORT  ?= 5173
 
-.PHONY: help setup db-up migrate seed seed-demo purge-demo api web worker test e2e lint format screenshots openapi-validate clean
+.PHONY: help setup db-up migrate seed seed-demo purge-demo create-admin api web worker test e2e \
+	lint format screenshots openapi-validate up prod-up prod-down prod-logs backup restore clean
+
+# Compose invocations. The production stack is the base file *plus* the overlay that turns
+# every development default into a required variable (infra/docker-compose.prod.yml).
+COMPOSE      ?= docker compose -f infra/docker-compose.yml
+PROD_COMPOSE ?= $(COMPOSE) -f infra/docker-compose.prod.yml
 
 help: ## Show the available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[1m%-16s\033[0m %s\n", $$1, $$2}'
@@ -44,6 +50,9 @@ seed-demo: ## Load the demo layer on top (is_demo=true) — phase 1E
 
 purge-demo: ## Remove every is_demo row, leaving only real data — phase 1E
 	$(PY) -m vendoriq_api.seed purge-demo
+
+create-admin: ## Create one real staff account — the first user of a live stack (asks for a password)
+	$(PY) -m vendoriq_api.seed create-admin --email "$(EMAIL)" --name "$(NAME)"
 
 api: ## Run the API at http://localhost:$(API_PORT) (/health, /api/docs)
 	DATABASE_URL="$(DB_URL)" $(PY) -m uvicorn vendoriq_api.main:app \
@@ -78,6 +87,24 @@ screenshots: ## Capture all 34 screens × AZ/EN into docs/screens/
 
 openapi-validate: ## Validate docs/openapi.yaml against the OpenAPI 3.1 metaschema
 	$(PY) -m pytest $(API_DIR)/tests/test_openapi_contract.py -q
+
+up: ## Bring up the development stack in Docker (seeded, http://localhost)
+	$(COMPOSE) --profile dev up --build
+
+prod-up: ## Bring up the production stack (needs infra/.env — see docs/RUNBOOK.md)
+	$(PROD_COMPOSE) --profile prod up --build -d
+
+prod-down: ## Stop the production stack, keeping its volumes
+	$(PROD_COMPOSE) --profile prod down
+
+prod-logs: ## Follow the production logs
+	$(PROD_COMPOSE) --profile prod logs -f
+
+backup: ## Snapshot the running stack's database and documents into ./var/backups
+	@bash scripts/backup.sh
+
+restore: ## Restore a snapshot: make restore SNAPSHOT=var/backups/vendoriq-...
+	@bash scripts/restore.sh "$(SNAPSHOT)"
 
 clean: ## Remove build artefacts and caches
 	rm -rf .pytest_cache .ruff_cache .mypy_cache $(WEB_DIR)/dist $(WEB_DIR)/test-results

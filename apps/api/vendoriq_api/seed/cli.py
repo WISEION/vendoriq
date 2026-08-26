@@ -5,6 +5,7 @@ Three commands, matching the Makefile (brief §2, seed/README.md)::
     load --real     the 13 vendors, categories, scoring models, the TQS2026006 cycle
     load --demo     the removable demo layer on top
     purge-demo      deletes every is_demo=True row, real data untouched
+    create-admin    one real staff account — how a production stack gets its first user
 
 Each command opens exactly one transaction (``db.session_scope``) — either everything it
 does commits, or a failure (including a :class:`SeedError`) rolls all of it back.
@@ -13,11 +14,15 @@ does commits, or a failure (including a :class:`SeedError`) rolls all of it back
 from __future__ import annotations
 
 import argparse
+import getpass
 import logging
+import os
 from collections.abc import Sequence
 
 from ..config import get_settings
 from ..db import UnitOfWork, session_scope
+from ..models.enums import UserRole
+from ..services import accounts as accounts_service
 from .demo import DemoSummary, load_demo
 from .errors import SeedError
 from .purge import PurgeSummary, purge_demo
@@ -42,6 +47,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     subcommands.add_parser("purge-demo", help="Delete every is_demo=true row.")
+
+    admin_parser = subcommands.add_parser(
+        "create-admin",
+        help="Create one real staff account (the first user of a production stack).",
+    )
+    admin_parser.add_argument("--email", required=True)
+    admin_parser.add_argument("--name", required=True, help="Full name, as shown in the UI.")
+    admin_parser.add_argument(
+        "--role",
+        default=UserRole.ADMIN.value,
+        choices=[role.value for role in UserRole if role is not UserRole.VENDOR],
+        help="Default: admin.",
+    )
+    # No --password flag. Command lines are visible to every process on the host through
+    # `ps`, and they end up in the shell history of whoever deployed.
     return parser
 
 
@@ -61,6 +81,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "purge-demo":
             _run_purge()
             return 0
+        if args.command == "create-admin":
+            return _run_create_admin(email=args.email, name=args.name, role=UserRole(args.role))
     except SeedError as exc:
         logger.error("seed error: %s", exc)
         return 1
@@ -83,6 +105,35 @@ def _run_purge() -> None:
     with session_scope() as session:
         summary = purge_demo(UnitOfWork(session))
     _print_purge_summary(summary)
+
+
+def _run_create_admin(*, email: str, name: str, role: UserRole) -> int:
+    """Prompt for a password, create the account, print the TOTP secret once."""
+    # The environment variable exists for a provisioning script that has no terminal; an
+    # operator at a prompt gets `getpass`, which does not echo and does not reach history.
+    password = os.environ.get("VENDORIQ_ADMIN_PASSWORD") or getpass.getpass("Password: ")
+    if not os.environ.get("VENDORIQ_ADMIN_PASSWORD") and password != getpass.getpass("Repeat: "):
+        print("The two passwords differ — nothing was created.")
+        return 1
+
+    try:
+        with session_scope() as session:
+            user, uri = accounts_service.create_staff_account(
+                UnitOfWork(session), email=email, full_name=name, role=role, password=password
+            )
+            secret, address, role_name = user.totp_secret, user.email, user.role.value
+    except (accounts_service.AccountExistsError, ValueError) as exc:
+        print(str(exc))
+        return 1
+
+    print("== VendorIQ: staff account created ==")
+    print(f"  {role_name:<10} {address}")
+    print(f"  TOTP secret: {secret}")
+    print(f"  {uri}")
+    print()
+    print("Enrol the authenticator now. The secret is shown once and is not stored anywhere")
+    print("it can be read back — losing it means creating the account again.")
+    return 0
 
 
 def _print_real_summary(summary: RealSummary) -> None:

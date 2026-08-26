@@ -558,3 +558,69 @@ three of the 34 screens were going to show an empty market on first run. After t
 live system must reproduce 96 % through the API — and that assertion belongs in
 `test_projects.py` against the database, with the engine fixture relabelled as the
 engine-level test it actually is.
+
+## ADR-019 — A production stack starts with no users, so it needs a way to get its first one
+
+**Context.** `AUTH_MODE=live` seeds nothing. That is right and was decided early:
+`create_test_accounts` raises `TestModeRequiredError` outside test mode, precisely so a live
+system can never quietly grow an `admin@vendoriq.test` whose password is printed in
+`docs/TEST_ACCOUNTS.md`.
+
+The consequence had not been followed through. A stack deployed with `--profile prod` comes up
+with an empty `app_user` table, and **every** screen is behind a sign-in — including the one
+that creates users. There is no first move. The system is not misconfigured, it is
+unreachable, and nothing in the build would have shown this, because every test and every
+development run is in test mode where the accounts are already there.
+
+**Ruling.** `python -m vendoriq_api.seed create-admin --email … --name … [--role …]`, run once
+from the API container by whoever deploys.
+
+* The password is read from a prompt or from `VENDORIQ_ADMIN_PASSWORD`, never from a flag —
+  a command line is readable by every process on the host through `ps`, and it lands in the
+  deploying operator's shell history.
+* It **refuses** an address that already exists rather than resetting its password. A command
+  that silently takes over an existing account is a privilege-escalation tool for anybody who
+  can reach the container, and the convenience is not worth it: the admin screens can change
+  a password once somebody is in.
+* The TOTP secret is generated here and printed once. It is not retrievable afterwards, which
+  is a property of the design rather than an oversight, so the runbook says to enrol the
+  authenticator before closing the terminal.
+* `is_demo=False`, so `make purge-demo` does not delete the administrator — which is the sort
+  of thing that only shows up the day somebody runs it.
+
+**Consequences.** `docs/RUNBOOK.md` §3.4 is now a sequence that ends with someone logged in.
+The alternative — documenting a manual `INSERT` with an Argon2 hash produced by hand — is not
+a procedure anyone should follow at the end of a deployment.
+
+## ADR-020 — The production overlay makes the development defaults impossible, not merely wrong
+
+**Context.** `infra/docker-compose.yml` is written for a laptop: `APP_ENV` defaults to
+development, `AUTH_MODE` to test, and every password to a word printed in this repository. In
+test mode the API seeds the published accounts and reveals sign-in codes. A stack that reached
+a public hostname still carrying those defaults would not be a misconfiguration to fix later;
+it would be open on the first request.
+
+Brief §7.1 asks for `--profile prod` "with Caddy TLS instructions in runbook". A runbook that
+lists variables to set is exactly the artefact that gets half-followed at 2 a.m.
+
+**Ruling.** `infra/docker-compose.prod.yml`, layered over the base file, replaces each unsafe
+default with either a fixed production value (`APP_ENV: production`, `AUTH_MODE: live`,
+`STORAGE_BACKEND: s3`) or the `${VAR:?…}` form, which makes `docker compose` refuse to render a
+configuration at all while the variable is unset. The failure mode moves from *starts and is
+insecure* to *does not start and names the variable*.
+
+This pairs with the guard already in `config.py`: the overlay guarantees `APP_ENV=production`
+reaches the container, and the container then refuses `AUTH_MODE=test` under it. Neither half
+is sufficient alone — the guard never fires if `APP_ENV` is left at its default, which is
+exactly what a forgotten `.env` produces.
+
+**Verification.** `apps/api/tests/test_compose_profiles.py` renders the overlay with
+`docker compose config` and asserts the result: production and live on `api` and `worker`,
+Caddy the only service publishing a port, and a refusal when `SESSION_SECRET` is absent. The
+YAML-level assertions run without a Docker CLI, so CI checks them too. This matters more than
+usual: the guarantee is one careless `:-` away from evaporating, and nothing about the running
+system would look any different afterwards.
+
+**What is still unverified.** No Docker daemon exists on the build host (brief §9), so the
+images have never been built and the stack has never been started. `docs/RUNBOOK.md` says so
+in its first paragraph rather than in a footnote.
