@@ -57,6 +57,8 @@ Knock-out criteria: `sub-4` → A.1 licence, A.4 tax clearance, F.1 HSE policy.
 
 ```python
 def score(model: ScoringModel, raw: RawIndicators) -> ScoreResult: ...
+
+
 #   RawIndicators = dict[str, float | int | None]     # criterion code -> value
 #   ScoreResult(per: dict[str, float], groups: dict[str, float],
 #               total: float, ko: bool, cls: ScoreClassName)
@@ -112,7 +114,9 @@ returned when `ko` is `False` — the evaluation screen shows both.
 ## 3. `derive_raw`
 
 ```python
-def derive_raw(answers: dict[str, object], vendor_type: Literal["sub","sup","both"]) -> RawIndicators: ...
+def derive_raw(
+    answers: dict[str, object], vendor_type: Literal["sub", "sup", "both"]
+) -> RawIndicators: ...
 ```
 
 Maps application answers (keyed by the field catalogue codes of spec Appendix A, tables as
@@ -147,10 +151,12 @@ observations first and passes plain values.
 ## 4. `match_package` / `match_project`
 
 ```python
-def match_package(pkg: PackageInput, candidates: list[CandidateInput],
-                  params: MatchParams | None = None) -> PackageMatch: ...
-def match_project(project: ProjectInput, candidates: list[CandidateInput],
-                  params: MatchParams | None = None) -> ProjectMatch: ...
+def match_package(
+    pkg: PackageInput, candidates: list[CandidateInput], params: MatchParams | None = None
+) -> PackageMatch: ...
+def match_project(
+    project: ProjectInput, candidates: list[CandidateInput], params: MatchParams | None = None
+) -> ProjectMatch: ...
 ```
 
 `MatchParams(strong_min=2, capacity_ratio=0.40, supplier_turnover_divisor=4.0)` — defaults

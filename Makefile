@@ -7,6 +7,12 @@ SHELL := /bin/bash
 
 UV        ?= uv
 PY        ?= .venv/bin/python
+# From the venv, not from PATH. CI runs `uv run ruff`, which resolves the version pinned in
+# uv.lock; a different ruff on a developer's PATH silently disagrees with it. It did: 0.15.8
+# skips Markdown ("formatting is experimental") while the pinned 0.16.4 formats the Python
+# blocks inside it, so `make lint` passed locally on a file CI rejected.
+RUFF      ?= .venv/bin/ruff
+MYPY      ?= .venv/bin/mypy
 API_DIR   := apps/api
 WEB_DIR   := apps/web
 DB_URL    ?= postgresql+psycopg://vendoriq:vendoriq@localhost:5432/vendoriq
@@ -57,14 +63,14 @@ e2e: ## Run the Playwright suite (needs make api and make web running, or CI's s
 	cd $(WEB_DIR) && npm run e2e
 
 lint: ## ruff + mypy + eslint + tsc
-	ruff check .
-	ruff format --check .
-	mypy .
+	$(RUFF) check .
+	$(RUFF) format --check .
+	$(MYPY) .
 	cd $(WEB_DIR) && npm run lint && npm run typecheck
 
 format: ## Apply ruff and prettier formatting
-	ruff format .
-	ruff check --fix .
+	$(RUFF) format .
+	$(RUFF) check --fix .
 	cd $(WEB_DIR) && npm run format
 
 screenshots: ## Capture all 34 screens × AZ/EN into docs/screens/
