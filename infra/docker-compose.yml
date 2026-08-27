@@ -13,8 +13,16 @@ x-api-env: &api-env
   DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-vendoriq}:${POSTGRES_PASSWORD:-vendoriq}@db:5432/${POSTGRES_DB:-vendoriq}
   TEST_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-vendoriq}:${POSTGRES_PASSWORD:-vendoriq}@db:5432/${POSTGRES_DB:-vendoriq}_test
   SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in infra/.env}
-  STORAGE_BACKEND: ${STORAGE_BACKEND:-s3}
+  # Pinned, not defaulted. infra/.env.example carries STORAGE_BACKEND=local for a native run,
+  # and compose reads that same .env — so a defaulted value silently switched the whole stack
+  # to files inside the api container, where no volume backs them and MinIO idles unused.
+  # In containers the only storage that survives a recreate is the bucket.
+  STORAGE_BACKEND: s3
   S3_ENDPOINT_URL: http://minio:9000
+  # What a browser gets in pre-signed URLs. `minio:9000` only resolves inside this network;
+  # a signature covers host and path, so the URL must be minted for the address the client
+  # actually uses. Dev default: the S3 port published below. Prod: see the overlay.
+  S3_PUBLIC_ENDPOINT_URL: ${S3_PUBLIC_ENDPOINT_URL:-http://localhost:9000}
   S3_BUCKET: ${S3_BUCKET:-vendoriq}
   S3_ACCESS_KEY: ${MINIO_ROOT_USER:-vendoriq}
   S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-vendoriq-secret}
@@ -60,7 +68,20 @@ services:
       retries: 12
     restart: unless-stopped
 
+  # S3 buckets are not self-creating. Without this one-shot step the very first upload dies
+  # with NoSuchBucket — found live, not hypothesised. `--ignore-existing` keeps it idempotent.
+  minio-init:
+    image: minio/mc:latest
+    profiles: [dev, prod]
+    depends_on:
+      minio: { condition: service_healthy }
+    entrypoint: >-
+      sh -c "mc alias set local http://minio:9000 '${MINIO_ROOT_USER:-vendoriq}' '${MINIO_ROOT_PASSWORD:-vendoriq-secret}' &&
+             mc mb --ignore-existing 'local/${S3_BUCKET:-vendoriq}'"
+    restart: "no"
+
   api:
+    image: vendoriq-api
     build:
       context: ..
       dockerfile: infra/Dockerfile.api
@@ -69,6 +90,7 @@ services:
     depends_on:
       db: { condition: service_healthy }
       minio: { condition: service_started }
+      minio-init: { condition: service_completed_successfully }
     # Migrations run at start-up so a clean clone comes up with a schema.
     command: >-
       sh -c "alembic upgrade head &&
@@ -89,9 +111,9 @@ services:
   # a live system, so a production stack starts empty and is loaded on purpose (`make seed`).
   # The command is idempotent, so restarting the stack re-runs it harmlessly.
   seed:
-    build:
-      context: ..
-      dockerfile: infra/Dockerfile.api
+    # The api image, byte for byte — naming it instead of repeating the build stops compose
+    # building the same Dockerfile twice and inventing a second image name for it.
+    image: vendoriq-api
     profiles: [dev]
     environment: *api-env
     depends_on:
@@ -149,6 +171,14 @@ services:
     profiles: [dev]
     command: tcp-listen:9001,fork,reuseaddr tcp-connect:minio:9001
     ports: ["9001:9001"]
+    depends_on: [minio]
+
+  # The S3 API itself, published so the pre-signed URLs handed to a dev browser resolve.
+  minio-s3-ports:
+    image: alpine/socat:latest
+    profiles: [dev]
+    command: tcp-listen:9000,fork,reuseaddr tcp-connect:minio:9000
+    ports: ["9000:9000"]
     depends_on: [minio]
 
 volumes:

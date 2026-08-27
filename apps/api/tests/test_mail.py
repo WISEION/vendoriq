@@ -33,7 +33,7 @@ class _FakeSMTP:
 
     instances: ClassVar[list[_FakeSMTP]] = []
 
-    def __init__(self, host: str, port: int) -> None:
+    def __init__(self, host: str, port: int, timeout: float | None = None) -> None:
         self.host = host
         self.port = port
         self.started_tls = False
@@ -106,3 +106,19 @@ def test_tls_and_credentials_are_optional(monkeypatch: pytest.MonkeyPatch) -> No
     server = _FakeSMTP.instances[-1]
     assert server.started_tls is False
     assert server.login_args is None
+
+
+def test_an_unreachable_relay_is_a_503_not_a_traceback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Found on the compose rehearsal: with a dead SMTP host, a vendor asking for a sign-in
+    code got a raw 500 and the log a traceback per attempt. An unreachable relay is an
+    operational condition — the caller learns delivery failed, nothing more."""
+    from vendoriq_api.errors import ApiError
+
+    def _refuse(*args: object, **kwargs: object) -> None:
+        raise OSError("Name or service not known")
+
+    monkeypatch.setattr(smtplib, "SMTP", _refuse)
+    settings = Settings(_env_file=None, smtp_host="smtp.dead.example")  # type: ignore[call-arg]
+    with pytest.raises(ApiError) as info:
+        mail.send(settings, to="a@b.c", subject="s", body="b")
+    assert info.value.status_code == 503

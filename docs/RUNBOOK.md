@@ -3,13 +3,15 @@
 For whoever deploys and keeps VendorIQ running. Everything here assumes Docker and the
 Compose plugin on the target host; nothing else is required of it.
 
-> **What has and has not been executed.** The build host for this project had no Docker
-> daemon (BUILD_BRIEF §9), so the commands below have not been run end to end anywhere. What
-> *has* been verified is the configuration they use: `apps/api/tests/test_compose_profiles.py`
-> renders the production stack with `docker compose config` and asserts what comes out, and
-> `apps/api/tests/test_backup_scripts.py` exercises the restore script's refusals. The
-> containers themselves — image builds, `pg_restore`, `mc mirror`, ACME — are unverified.
-> Treat the first deployment as a rehearsal, on a host you can throw away.
+> **What has and has not been executed.** Both compose profiles have now been brought up and
+> exercised on a real Docker daemon: dev serves the seeded app through Caddy, a document was
+> uploaded from outside the network through a pre-signed URL and downloaded back byte-for-byte,
+> `make backup` and `make restore` completed a real cycle (a purged demo layer came back from
+> the dump), and the prod profile came up pinned to `production`/`live` with only Caddy
+> published. Eight runtime defects were found and fixed by doing so — none of which any build
+> or unit test had caught (`docs/DECISIONS.md`, ADR-024). Still unverified, because this host
+> cannot: **ACME issuance** (no public DNS — the rehearsal used `tls internal`) and **delivery
+> through a real SMTP relay**. Watch those two on your first deployment.
 
 ## 1. What runs
 
@@ -48,9 +50,11 @@ production stack is a different command.
 
 ### 3.1 Before the first deploy
 
-1. A DNS `A`/`AAAA` record for the hostname, pointing at the host. Caddy obtains its
-   certificate over HTTP-01, so this has to resolve *before* the first start or issuance
-   fails and retries with a backoff.
+1. DNS `A`/`AAAA` records for **two** hostnames, pointing at the host: the app
+   (`vendoriq.example.az`) and its document endpoint (`s3.vendoriq.example.az`) — pre-signed
+   upload/download URLs carry the second one, and a signature covers host and path, so it
+   cannot be a sub-path of the first. Caddy obtains certificates over HTTP-01, so both have
+   to resolve *before* the first start or issuance fails and retries with a backoff.
 2. Ports 80 and 443 reachable from the internet. 80 is not optional — it is what the ACME
    challenge uses, and Caddy redirects it to 443 afterwards.
 3. An SMTP account that can send from the address you will put in `SMTP_FROM`. Without it
@@ -74,6 +78,7 @@ stack half-configured:
 | `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | likewise |
 | `SMTP_HOST` / `SMTP_FROM` | and `SMTP_USER`, `SMTP_PASSWORD` if the relay authenticates |
 | `DOMAIN` | the public hostname, e.g. `vendoriq.uniko.az` |
+| `S3_PUBLIC_ENDPOINT_URL` | `https://s3.<DOMAIN>` — where browsers reach documents |
 | `TLS_DIRECTIVE` | `tls ops@uniko.az` for automatic Let's Encrypt certificates |
 
 `APP_ENV=production` and `AUTH_MODE=live` are not variables here — the overlay pins them, and

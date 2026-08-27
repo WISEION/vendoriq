@@ -108,3 +108,47 @@ def test_importing_the_s3_module_never_fails() -> None:
     from vendoriq_api.storage import s3
 
     assert s3.S3Storage is not None
+
+
+@pytest.mark.skipif(not BOTO3_AVAILABLE, reason="boto3 not installed on this host")
+def test_presigned_urls_are_minted_for_the_public_endpoint() -> None:
+    """The URL a browser gets must carry a hostname the browser can resolve.
+
+    Inside compose the API reaches MinIO as ``http://minio:9000``; a signature covers host
+    and path, so a URL signed for that name and rewritten afterwards is just a well-formed
+    403. Found live: the dev stack handed clients ``minio:9000`` and every upload died on
+    the first PUT. The fix is a second signing client bound to ``S3_PUBLIC_ENDPOINT_URL``.
+    """
+    from vendoriq_api.storage.s3 import S3Storage
+
+    storage = S3Storage(
+        bucket="vendoriq",
+        endpoint_url="http://minio:9000",
+        public_endpoint_url="https://s3.vendoriq.example.az",
+        access_key="k",
+        secret_key="s",
+        region="us-east-1",
+    )
+    up = storage.upload_url(
+        "documents/x/A-01/f.pdf", content_type="application/pdf", ttl_seconds=60
+    )
+    down = storage.download_url("documents/x/A-01/f.pdf", filename="f.pdf", ttl_seconds=60)
+    assert up.url.startswith("https://s3.vendoriq.example.az/")
+    assert down.url.startswith("https://s3.vendoriq.example.az/")
+
+
+@pytest.mark.skipif(not BOTO3_AVAILABLE, reason="boto3 not installed on this host")
+def test_without_a_public_endpoint_the_internal_one_signs() -> None:
+    """Native dev and a real AWS endpoint: one address serves both roles."""
+    from vendoriq_api.storage.s3 import S3Storage
+
+    storage = S3Storage(
+        bucket="vendoriq",
+        endpoint_url="http://localhost:9000",
+        access_key="k",
+        secret_key="s",
+        region="us-east-1",
+    )
+    assert storage.upload_url("k", content_type="a/b", ttl_seconds=60).url.startswith(
+        "http://localhost:9000/"
+    )

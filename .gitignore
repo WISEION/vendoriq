@@ -40,3 +40,10 @@ infra/.env
 .vscode/
 
 
+
+# Host-generated build scaffolding for TLS-intercepted sandboxes (see docs/RUNBOOK.md):
+# derived Dockerfiles plus the egress CA and fonts they copy in. Never committed — CI builds
+# the canonical Dockerfiles.
+infra/Dockerfile.*.sandbox
+/.sandbox-egress-ca.crt
+/.sandbox-fonts/

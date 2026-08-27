@@ -15,6 +15,7 @@ import smtplib
 from email.message import EmailMessage
 
 from ..config import Settings
+from ..errors import ApiError
 
 logger = logging.getLogger("vendoriq.mail")
 
@@ -29,11 +30,21 @@ def send(settings: Settings, *, to: str, subject: str, body: str) -> bool:
     message["To"] = to
     message["Subject"] = subject
     message.set_content(body)
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
-        if settings.smtp_tls:
-            server.starttls()
-        if settings.smtp_user and settings.smtp_password:
-            server.login(settings.smtp_user, settings.smtp_password)
-        server.send_message(message)
+    try:
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as server:
+            if settings.smtp_tls:
+                server.starttls()
+            if settings.smtp_user and settings.smtp_password:
+                server.login(settings.smtp_user, settings.smtp_password)
+            server.send_message(message)
+    except (OSError, smtplib.SMTPException) as exc:
+        # An unreachable or refusing relay is an operational condition, not a programming
+        # error: without this, a vendor asking for a sign-in code got a raw 500 and the log
+        # got a traceback per attempt (seen live on the compose rehearsal). The address of
+        # the relay is for the log; the caller only learns delivery failed.
+        logger.error("e-mail delivery failed to=%s via %s: %s", to, settings.smtp_host, exc)
+        raise ApiError(
+            503, "mail_unavailable", "The message could not be delivered. Try again shortly."
+        ) from exc
     logger.info("e-mail sent to=%s subject=%s", to, subject)
     return True

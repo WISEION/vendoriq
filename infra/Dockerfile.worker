@@ -23,13 +23,13 @@ COPY packages/excel_import/pyproject.toml packages/excel_import/
 # has drifted from the manifests into a *silently different* dependency set in the production
 # image, while CI's docker-build check stayed green — the one failure the lock file exists to
 # prevent. If this line fails, the fix is `uv lock`, committed.
-RUN uv sync --frozen --no-dev --no-install-workspace
+RUN uv sync --frozen --no-dev --all-packages --all-extras --no-install-workspace
 
 COPY packages/ packages/
 COPY apps/api/ apps/api/
 COPY apps/worker/ apps/worker/
 COPY docs/openapi.yaml docs/openapi.yaml
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --all-packages --all-extras
 
 RUN useradd --system --uid 10001 vendoriq && chown -R vendoriq /app
 USER vendoriq

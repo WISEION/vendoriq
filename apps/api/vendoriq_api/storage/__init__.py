@@ -46,6 +46,7 @@ def get_storage() -> Storage:
             access_key=settings.s3_access_key,
             secret_key=settings.s3_secret_key,
             region=settings.s3_region,
+            public_endpoint_url=settings.s3_public_endpoint_url,
         )
     return LocalStorage(
         settings.storage_local_dir,

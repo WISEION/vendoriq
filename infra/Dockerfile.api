@@ -25,7 +25,7 @@ COPY packages/excel_import/pyproject.toml packages/excel_import/
 # has drifted from the manifests into a *silently different* dependency set in the production
 # image, while CI's docker-build check stayed green — the one failure the lock file exists to
 # prevent. If this line fails, the fix is `uv lock`, committed.
-RUN uv sync --frozen --no-dev --no-install-workspace
+RUN uv sync --frozen --no-dev --all-packages --all-extras --no-install-workspace
 
 COPY packages/ packages/
 COPY apps/api/ apps/api/
@@ -39,7 +39,7 @@ COPY seed/data.json seed/data.json
 # Wesa's real application form, already parsed (scripts/freeze-wesa-form.py). The workbook and
 # openpyxl stay out of the image; without this file the vendor portal has no answers to show.
 COPY seed/wesa_form.json seed/wesa_form.json
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --all-packages --all-extras
 
 RUN useradd --system --uid 10001 vendoriq && chown -R vendoriq /app
 USER vendoriq
